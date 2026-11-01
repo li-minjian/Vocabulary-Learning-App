@@ -116,7 +116,7 @@ export function ImportStep2() {
       const regex = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi');
       const parts = text.split(regex);
 
-      return parts.map((part, idx) => {
+      return parts.map((part: string, idx: number) => {
         const isMatch = wordsToHighlight.some(w => w.toLowerCase() === part.toLowerCase());
         if (isMatch) {
           return (

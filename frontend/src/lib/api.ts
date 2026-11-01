@@ -49,9 +49,9 @@ async function getFreshToken(): Promise<string | null> {
   return session.access_token;
 }
 
-async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
+export async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(options?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options?.headers as Record<string, string> || {}),
   };
 
@@ -232,6 +232,10 @@ export interface Collection {
 export async function fetchCollections(): Promise<Collection[]> {
   const result = await fetchApi<{ items: Collection[]; count: number }>('/api/collections');
   return result.items;
+}
+
+export function fetchCollectionById(collectionId: string): Promise<Collection> {
+  return fetchApi<Collection>(`/api/collections/${encodeURIComponent(collectionId)}`);
 }
 
 export async function createCollection(data: Partial<Collection>): Promise<Collection> {

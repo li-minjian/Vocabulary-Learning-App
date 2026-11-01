@@ -56,7 +56,7 @@ export function ImportStep3() {
     { value: 'Interjection', label: 'Interjection' }
   ];
 
-  const [isEnriching, setIsEnriching] = useState(true);
+  const [isEnriching, setIsEnriching] = useState(false);
   const [enrichedCount, setEnrichedCount] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,21 +73,18 @@ export function ImportStep3() {
     fetchCollections().then(setCollections).catch(console.error);
   }, []);
 
-  // Bulk Enrich Words
-  useEffect(() => {
+  // AI enrichment runs only after the user explicitly requests it.
+  const performEnrichment = async () => {
     if (!initialWords.length) {
       setIsEnriching(false);
       return;
     }
 
-    let isMounted = true;
-
-    const performEnrichment = async () => {
+    setIsEnriching(true);
       try {
-        const aiDataList = await bulkEnrichWords(initialWords, language);
+        const aiDataList = await bulkEnrichWords(words, language);
         
-        if (isMounted) {
-          const enriched = initialWords.map((item, i) => {
+          const enriched = words.map((item, i) => {
             const aiData = aiDataList.find(a => a.word?.toLowerCase() === item.word?.toLowerCase()) || aiDataList[i] || {};
             return {
               ...item,
@@ -99,11 +96,8 @@ export function ImportStep3() {
           setWords(enriched);
           setEnrichedCount(enriched.length);
           setIsEnriching(false);
-        }
       } catch (err: any) {
         console.error("Bulk enrichment failed", err);
-        if (isMounted) {
-          setWords(initialWords);
           setIsEnriching(false);
           
           const errMsg = err?.message || '';
@@ -112,16 +106,8 @@ export function ImportStep3() {
           } else {
             setError('AI enrichment failed. You can still save the words manually without AI assistance.');
           }
-        }
       }
-    };
-
-    performEnrichment();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [initialWords, language]);
+  };
 
   const toggleExpand = (index: number) => {
     const newExpanded = new Set(expanded);
@@ -316,6 +302,11 @@ export function ImportStep3() {
       )}
 
       {/* Batch parameters settings card */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-white p-4">
+        <p className="text-sm text-muted-foreground">Review and save as supplied, or explicitly request AI enrichment.</p>
+        <button type="button" onClick={performEnrichment} disabled={!words.length || isSaving}
+          className="rounded-xl border border-border px-4 py-2 text-sm font-semibold disabled:opacity-50">Enrich selected with AI</button>
+      </div>
       <div className="bg-white border border-[#c2c7cc]/60 rounded-3xl p-6 shadow-sm space-y-5">
         <div className="flex items-center justify-between border-b border-[#c2c7cc]/40 pb-3">
           <div className="flex items-center gap-2">

@@ -13,6 +13,9 @@ from routes.import_text import import_bp
 from routes.review import review_bp
 from routes.stats import stats_bp
 from routes.export import export_bp
+from routes.articles import articles_bp
+from routes.file_import import file_import_bp
+from routes.dictionary import dictionary_bp
 print("[APP_VERSION] supabase-config-diag-v2", flush=True)
 
 def create_app() -> Flask:
@@ -163,6 +166,9 @@ def create_app() -> Flask:
     app.register_blueprint(review_bp, url_prefix='/api/review')
     app.register_blueprint(stats_bp, url_prefix='/api/stats')
     app.register_blueprint(export_bp, url_prefix='/api/export')
+    app.register_blueprint(articles_bp, url_prefix='/api/articles')
+    app.register_blueprint(file_import_bp, url_prefix='/api/file-import')
+    app.register_blueprint(dictionary_bp, url_prefix='/api/dictionary')
 
     return app
 

@@ -1,7 +1,7 @@
 import { ArrowLeft, Plus, Trash2, MoreVertical, Clock, Loader2, FolderOpen, Volume2 } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from "react-router";
 import { useEffect, useState } from 'react';
-import { fetchWordsByCollection, deleteCollection, type VocabularyWord } from '../../lib/api';
+import { fetchWordsByCollection, fetchCollectionById, deleteCollection, type VocabularyWord } from '../../lib/api';
 import { speakWord } from '../../lib/speech';
 import {
   AlertDialog,
@@ -20,7 +20,7 @@ export function CollectionDetail() {
   const { id: collectionId } = useParams<{ id: string }>();
   const data = location.state;
 
-  const collection = data || { name: '...', description: '' };
+  const [collection, setCollection] = useState(data || { name: '...', description: '' });
 
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,12 +58,14 @@ export function CollectionDetail() {
     }
 
     let isMounted = true;
+    setIsLoading(true);
 
     const loadWords = async () => {
       try {
-        const items = await fetchWordsByCollection(collectionId);
+        const [items, details] = await Promise.all([fetchWordsByCollection(collectionId), fetchCollectionById(collectionId)]);
         if (!isMounted) return;
         setWords(items);
+        setCollection(details);
         setError(null);
       } catch (err) {
         if (!isMounted) return;

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useState, useEffect } from 'react';
 import { fetchStats } from '../../lib/api';
+import { TypingProgressSummary } from '../components/TypingProgressSummary';
 
 export function Statistics() {
   const navigate = useNavigate();
@@ -69,6 +70,7 @@ export function Statistics() {
       </div>
 
       {/* Key Metrics */}
+      <TypingProgressSummary />
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white border border-[#c2c7cc]/60 rounded-3xl p-6 shadow-sm">
           <div className="flex items-center gap-2 text-[#42474b] mb-3">

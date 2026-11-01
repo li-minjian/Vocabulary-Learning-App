@@ -7,3 +7,15 @@ dist/
 __pycache__/
 *.pyc
 .DS_Store
+
+.venv/
+.env.e2e
+.env.test
+backend/data/dictionary/*.csv
+backend/data/dictionary/*.gz
+backend/data/dictionary/*.sqlite*
+backend/data/dictionary/*.jsonl
+backend/data/dictionary/*.zip
+backend/data/dictionary/*.manifest.json
+test-results/
+playwright-report/

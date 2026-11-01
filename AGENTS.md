@@ -4,6 +4,9 @@
 
 This repository uses reusable AI-agent skills for safer development.
 
+Start by reading `docs/ARCHITECTURE.md`, then relevant PRDs and `docs/adr/`.
+It is the living navigation reference; current verified source and Git state remain authoritative.
+
 For bug fixing, regressions, unfinished UI behavior, API issues, database relationship bugs, and deployment issues, use:
 
 - `docs/skills/test-fix-verify-report.md`

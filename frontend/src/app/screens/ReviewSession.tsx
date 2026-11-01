@@ -86,7 +86,7 @@ export function ReviewSession() {
       const others = q.filter(w => w.id !== word.id).map(w => w.word);
       const distractors = others.sort(() => 0.5 - Math.random()).slice(0, 3);
       if (distractors.length < 3) {
-        distractors.push('Example', 'Target', 'Context').slice(0, 3 - distractors.length);
+        distractors.push(...['Example', 'Target', 'Context'].slice(0, 3 - distractors.length));
       }
       setMcOptions([...distractors, word.word].sort(() => 0.5 - Math.random()));
     }

@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight, FileText, Loader2, UploadCloud, Settings2 } from
 import { useNavigate } from "react-router";
 import { useState, useRef } from 'react';
 import { analyzeText, extractTextFromFile } from '../../lib/api';
+import { saveArticle } from '../../lib/articles';
 import { SelectField, type SelectOption } from '../components/ui/SelectField';
 
 export function ImportStep1() {
@@ -17,6 +18,7 @@ export function ImportStep1() {
   const [count, setCount] = useState(10);
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSavingArticle, setIsSavingArticle] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -64,6 +66,19 @@ export function ImportStep1() {
       setError(err instanceof Error ? err.message : 'Failed to analyze text');
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handlePractice = async () => {
+    setIsSavingArticle(true);
+    setError(null);
+    try {
+      const article = await saveArticle({ title: title || 'Untitled article', raw_text: text, language, source_type: 'article_import' });
+      navigate(`/practice/${article.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save article');
+    } finally {
+      setIsSavingArticle(false);
     }
   };
 
@@ -226,6 +241,10 @@ export function ImportStep1() {
 
       {/* Buttons */}
       <div className="flex justify-end gap-3.5 pt-2">
+        <button type="button" onClick={handlePractice} disabled={!wordCount || isSavingArticle || isAnalyzing}
+          className="h-10 px-5 border border-border rounded-xl text-sm font-semibold disabled:opacity-50">
+          {isSavingArticle ? 'Saving article…' : 'Save for Reading & Typing'}
+        </button>
         <button
           onClick={() => navigate('/import')}
           className="h-10 px-5 border border-border rounded-xl hover:bg-slate-50 font-semibold transition-colors text-[14px] cursor-pointer"
@@ -238,7 +257,7 @@ export function ImportStep1() {
           disabled={wordCount === 0 || isAnalyzing}
           className="h-10 px-5 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-[#0a3346] transition-all text-[14px] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-md shadow-primary/5 active:scale-95"
         >
-          {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Analyze Material'}
+          {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Analyze Material with AI'}
           {!isAnalyzing && <ArrowRight className="w-4 h-4 text-teal-400" strokeWidth={2.5} />}
         </button>
       </div>

@@ -343,7 +343,7 @@ export function AddWord() {
                     <div className="space-y-3.5">
                       {aiData.examples.map((example, i) => (
                         <div key={i} className="pl-3.5 border-l-2 border-[#002434]/30 space-y-1">
-                          <div className="text-[14px] font-bold leading-relaxed text-[#191c1d]">{example.sentence || example}</div>
+                          <div className="text-[14px] font-bold leading-relaxed text-[#191c1d]">{typeof example === 'string' ? example : example.sentence}</div>
                           {example.translation && (
                             <div className="text-[12.5px] text-[#42474b] font-semibold">{example.translation}</div>
                           )}

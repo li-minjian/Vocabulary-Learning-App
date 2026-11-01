@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from "react-router";
+import { useNavigate, useLocation, useParams } from "react-router";
 import { ArrowLeft, Edit2, Trash2, Tag, FolderOpen, Clock, TrendingUp, Loader2, Volume2 } from 'lucide-react';
 import { fetchWordById, updateWord, deleteWord, type VocabularyWord } from '../../lib/api';
 import { speakWord } from '../../lib/speech';
@@ -18,9 +18,11 @@ export function WordDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const data = location.state;
+  const { id } = useParams<{ id: string }>();
+  const wordId = id || data?.id;
   
   const initialWord: VocabularyWord = {
-    id: data?.id ?? '',
+    id: wordId ?? '',
     word: '...',
     ipa: '',
     translation: '...',
@@ -42,7 +44,7 @@ export function WordDetail() {
 
   const [word, setWord] = useState<VocabularyWord>({ ...initialWord, ...data });
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(Boolean(data?.id));
+  const [isLoading, setIsLoading] = useState(Boolean(wordId));
   const [isDeleting, setIsDeleting] = useState(false);
   
   const [isEditing, setIsEditing] = useState(false);
@@ -53,17 +55,18 @@ export function WordDetail() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (!data?.id) {
+    if (!wordId) {
       setWord((current) => ({ ...current, ...data }));
       setIsLoading(false);
       return;
     }
 
     let isMounted = true;
+    setIsLoading(true);
 
     const loadWord = async () => {
       try {
-        const result = await fetchWordById(data.id);
+        const result = await fetchWordById(wordId);
         if (!isMounted) return;
         
         // Ensure defaults for arrays to prevent mapping errors
@@ -80,7 +83,7 @@ export function WordDetail() {
         setLoadError(null);
 
         // Auto-enter edit mode if navigating from Edit menu
-        if (data.isDirectEditing) {
+        if (data?.isDirectEditing) {
           setEditForm({
             word: safeResult.word,
             ipa: safeResult.ipa || '',
@@ -106,7 +109,7 @@ export function WordDetail() {
     return () => {
       isMounted = false;
     };
-  }, [data]);
+  }, [data, wordId]);
 
   const handleDeleteClick = () => {
     setIsDeleteDialogOpen(true);
