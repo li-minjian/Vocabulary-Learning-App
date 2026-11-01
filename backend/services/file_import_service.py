@@ -8,6 +8,7 @@ import json
 import re
 import uuid
 from services.file_parser import ImportValidationError, MAX_ROWS, MAX_CELL, plain_text
+from services.vocabulary_queries import list_user_words
 
 
 def normalized_word(value):
@@ -91,18 +92,6 @@ def _prepare_rows(rows, default_language):
     return prepared, errors
 
 
-def _existing_words(client, user_id):
-    items, start = [], 0
-    while True:
-        page = client.table('words').select('id,word,language').eq('user_id', user_id).order('id').range(start, start + 999).execute().data or []
-        items.extend(page)
-        if len(page) < 1000:
-            return items
-        start += 1000
-        if start >= 100000:
-            raise ImportValidationError('Library exceeds the supported duplicate-check size. Import a smaller library separately.')
-
-
 def prepare_import(client, user_id, payload):
     rows, language, collection_id, conflict, import_id = validate_payload(payload)
     if collection_id:
@@ -110,7 +99,7 @@ def prepare_import(client, user_id, payload):
         if not target:
             raise ImportValidationError('Destination collection is unavailable or belongs to another user.')
     prepared, errors = _prepare_rows(rows, language)
-    existing = _existing_words(client, user_id)
+    existing = list_user_words(client, user_id, 'id,word,language')
     existing_ids = {str(item['id']) for item in existing}
     known = {(normalized_word(str(item.get('language') or '')), normalized_word(item.get('word', ''))): item['id'] for item in existing}
     seen = set()

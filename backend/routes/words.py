@@ -1,6 +1,7 @@
 import uuid
 from flask import Blueprint, request, jsonify, g
 from services.supabase_client import supabase
+from services.vocabulary_queries import list_user_words
 
 words_bp = Blueprint('words', __name__)
 
@@ -34,14 +35,10 @@ def list_words():
         return jsonify({"message": "Supabase client not initialized"}), 500
         
     try:
-        query = supabase.table('words').select('*, examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))')
-        
-        collection_id = request.args.get('collection_id')
-        if collection_id:
-            query = query.eq('collection_id', collection_id)
-        
-        response = query.execute()
-        return jsonify({"items": response.data, "count": len(response.data)})
+        items = list_user_words(supabase, g.user_id,
+            '*, examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))',
+            request.args.get('collection_id'))
+        return jsonify({"items": items, "count": len(items)})
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 

@@ -47,8 +47,10 @@ Backend is an independently hosted Flask service (existing Cloud Run/Docker
 configuration). `docker-compose.yml` and existing Dockerfiles are preserved.
 No deployment or infrastructure configuration was changed.
 
-**Unknown — Not verified:** current production backend revision and deployed
-Supabase schema/RLS. Vercel read-only metadata confirmed `voca118.vercel.app`
+**Unknown — Not verified:** current production backend revision, deployed
+Supabase constraints and RLS behavior. Zero-row anonymous PostgREST requests verified
+all columns consumed by the new features in seven existing tables (HTTP200); no
+user rows were requested. Vercel read-only metadata confirmed `voca118.vercel.app`
 points to `30f343f8494e7066c1defd374810017c4ac9da5e` on `main`, rather than
 this feature branch. Feature-branch pushes are backups, not production releases.
 
@@ -75,6 +77,13 @@ session/user identity. `lib/api.ts` owns API base URL, bearer forwarding and one
 401 refresh/retry; JSON and FormData headers differ. `lib/fileImport.ts`,
 `lib/dictionary.ts` and `lib/articles.ts` provide typed feature contracts.
 No duplicate global state framework was introduced.
+
+`services/vocabulary_queries.py:list_user_words` owns complete, stable-ID-ordered
+user-library reads across PostgREST pages. Vocabulary lists, duplicate checks,
+Statistics and word/recall exports reuse it, so imports larger than the server's
+default page size remain visible, countable and exportable. Each page creates a
+fresh query with explicit user/optional collection predicates; pages advance by
+returned row count until empty.
 
 ## Flask and API responsibilities
 
@@ -133,8 +142,9 @@ Deleting a collection is defined to set its words' collection reference to null.
 saved dictionary entries retain source/context as text. No application schema,
 RLS or production auth change was applied by this branch.
 
-**Unknown — Not verified:** live policies/columns and migrations applied. Existing
-code uses `ipa`, absent from the checked-in initial migration. In-memory test
+**Unknown — Not verified:** live policies, constraints and migration history. Zero-row
+queries confirmed expected live columns, including `words.ipa`, which is absent
+from the checked-in initial migration. In-memory test
 doubles validate API ownership behavior, not deployed RLS or schema compatibility.
 
 ## Vocabulary and collection flows
