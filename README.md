@@ -4,6 +4,13 @@ An AI-assisted vocabulary learning web app that helps users turn real reading ma
 
 一个面向真实阅读场景的 AI 辅助词汇学习应用，帮助用户把阅读中遇到的生词快速沉淀为可整理、可复习、可追踪的个人系统化词汇。
 
+This development branch adds independent CSV/TSV/Anki TXT/APKG import,
+installed English/German dictionary lookup, and article-centered typing practice.
+Ordinary file import and dictionary lookup never request AI; enrichment is explicit.
+See [living architecture](docs/ARCHITECTURE.md), [local launch and acceptance](docs/LOCAL-DEVELOPMENT.md),
+[dictionary installation](docs/DICTIONARY.md), and [verification ledger](docs/DEVELOPMENT-LEDGER.md).
+These changes have not been deployed to the live demo.
+
 ![Voca UI Preview](docs/images/preview.png)
 
 ---

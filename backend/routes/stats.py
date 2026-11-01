@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, g
 from services.supabase_client import get_supabase
+from services.vocabulary_queries import list_user_words
 
 stats_bp = Blueprint('stats', __name__)
 
@@ -12,8 +13,8 @@ def get_stats():
         
     try:
         # Fetch all words for aggregation
-        res = supabase.table('words').select('id, created_at, updated_at, mastery, language, review_count, next_review').execute()
-        words = res.data
+        words = list_user_words(supabase, g.user_id,
+            'id, created_at, updated_at, mastery, language, review_count, next_review')
         
         now = datetime.utcnow()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)

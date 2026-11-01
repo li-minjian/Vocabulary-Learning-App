@@ -1,5 +1,6 @@
-from flask import Blueprint, jsonify, request, Response
+from flask import Blueprint, jsonify, request, Response, g
 from services.supabase_client import supabase
+from services.vocabulary_queries import list_user_words
 import io
 import csv
 
@@ -13,7 +14,7 @@ def export_vocabulary():
     try:
         format_param = request.args.get('format', 'json').lower()
         if format_param == 'csv':
-            words_res = supabase.table('words').select('*').execute()
+            words = list_user_words(supabase, g.user_id)
             collections_res = supabase.table('collections').select('id, name').execute()
             collection_map = {c['id']: c['name'] for c in collections_res.data} if collections_res.data else {}
             
@@ -32,8 +33,8 @@ def export_vocabulary():
                 "created_at"
             ])
             
-            if words_res.data:
-                for word in words_res.data:
+            if words:
+                for word in words:
                     coll_id = word.get('collection_id')
                     coll_name = collection_map.get(coll_id) if coll_id else ""
                     example_sentence = word.get('example_sentence') or ""
@@ -58,8 +59,9 @@ def export_vocabulary():
                 headers={"Content-disposition": "attachment; filename=voca_words_export.csv"}
             )
         else:
-            response = supabase.table('words').select('*, examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))').execute()
-            return jsonify(response.data)
+            words = list_user_words(supabase, g.user_id,
+                '*, examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))')
+            return jsonify(words)
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
@@ -78,8 +80,9 @@ def export_review_progress():
     if not supabase:
         return jsonify({"message": "Supabase client not initialized"}), 500
     try:
-        response = supabase.table('words').select('id, word, mastery, next_review, review_count, updated_at').execute()
-        return jsonify(response.data)
+        words = list_user_words(supabase, g.user_id,
+            'id, word, mastery, next_review, review_count, updated_at')
+        return jsonify(words)
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
@@ -88,11 +91,12 @@ def export_all():
     if not supabase:
         return jsonify({"message": "Supabase client not initialized"}), 500
     try:
-        words_res = supabase.table('words').select('*, examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))').execute()
+        words = list_user_words(supabase, g.user_id,
+            '*, examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))')
         collections_res = supabase.table('collections').select('*').execute()
         
         return jsonify({
-            "vocabulary": words_res.data,
+            "vocabulary": words,
             "collections": collections_res.data
         })
     except Exception as e:

@@ -44,7 +44,7 @@ export function ImportHub() {
             </div>
             <div>
               <div className="font-bold text-[14.5px] text-slate-850 dark:text-slate-100">3. Save & Enrich</div>
-              <div className="text-[13px] text-muted-foreground mt-1 leading-relaxed font-medium">AI auto-populates rich translations & IPAs</div>
+              <div className="text-[13px] text-muted-foreground mt-1 leading-relaxed font-medium">Review details; optional AI enrichment</div>
             </div>
           </div>
         </div>
@@ -81,47 +81,29 @@ export function ImportHub() {
         </div>
 
         {/* Future CSV/Anki Coming soon */}
-        <div className="bg-card border border-border border-dashed rounded-2xl p-6 shadow-sm flex flex-col justify-between opacity-80">
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col justify-between">
           <div className="space-y-2">
             <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-450">
               <Upload className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <div className="flex items-center gap-2 pt-1">
-              <h3 className="font-bold text-[16px] text-slate-500">File & List Import</h3>
+              <h3 className="font-bold text-[16px] text-slate-900">File & List Import</h3>
               <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[10.5px] font-bold text-slate-500 rounded border border-border uppercase tracking-wide">
-                Soon
+                Ready
               </span>
             </div>
             <p className="text-[13.5px] text-muted-foreground leading-relaxed font-medium">
-              Support for importing CSV / TSV vocabulary lists and Anki text export datasets directly into custom collections.
+              Support for importing CSV / TSV vocabulary lists, Anki TXT and APKG packages directly into custom collections.
             </p>
           </div>
-          <span className="mt-6 text-[13px] font-bold text-slate-400 italic">
-            Currently undergoing backend optimization.
-          </span>
+          <button onClick={() => navigate('/import/files')} className="mt-6 text-sm font-bold text-primary text-left">Import a file or list →</button>
+          <p className="mt-2 text-xs text-muted-foreground">Map fields, check duplicates, choose a collection. No AI requests.</p>
         </div>
       </div>
 
-      {/* Recent Imports Panel */}
-      <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4.5 border-b border-border bg-slate-50/50 dark:bg-slate-800/25">
-          <h2 className="font-bold text-[15px] text-slate-900 dark:text-white">Recent Imports History</h2>
-        </div>
-        <div className="divide-y divide-border/60">
-          {[
-            { title: 'German Business Article', words: 12, date: '2 days ago' },
-            { title: 'Technology Blog Post', words: 8, date: '1 week ago' },
-            { title: 'Academic Paper Extract', words: 15, date: '2 weeks ago' },
-          ].map((item, i) => (
-            <div key={i} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50/30 dark:hover:bg-slate-800/10 transition-colors">
-              <div>
-                <div className="font-bold text-[14.5px] text-slate-900 dark:text-slate-100">{item.title}</div>
-                <div className="text-[12.5px] text-muted-foreground mt-0.5 font-semibold">{item.words} vocabulary terms imported</div>
-              </div>
-              <div className="text-[12.5px] font-bold text-slate-400">{item.date}</div>
-            </div>
-          ))}
-        </div>
+      <div className="rounded-2xl border border-border bg-card p-6 flex flex-wrap items-center justify-between gap-4">
+        <div><h2 className="font-bold">Your reading library</h2><p className="text-sm text-muted-foreground mt-1">Save articles, look up words locally, and continue typing practice.</p></div>
+        <button onClick={() => navigate('/practice')} className="rounded-xl border border-border px-4 py-2 text-sm font-semibold">Open Reading & Typing</button>
       </div>
     </div>
   );

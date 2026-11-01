@@ -14,6 +14,7 @@ export function Navigation({ isCollapsed, onToggleCollapse, isMobileOpen = false
     { id: 'dashboard', path: '/', label: 'Dashboard', icon: Home },
     { id: 'vocabulary', path: '/vocabulary', label: 'Vocabulary', icon: Book },
     { id: 'import', path: '/import', label: 'Import', icon: Upload },
+    { id: 'practice', path: '/practice', label: 'Reading & Typing', icon: Book },
     { id: 'review', path: '/review', label: 'Review', icon: RotateCcw },
     { id: 'collections', path: '/collections', label: 'Collections', icon: FolderOpen },
     { id: 'statistics', path: '/statistics', label: 'Statistics', icon: BarChart3 },
