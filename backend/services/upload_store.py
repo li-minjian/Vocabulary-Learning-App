@@ -187,7 +187,8 @@ class GCSUploadStore:
         try:
             blob = self.bucket.get_blob(key)
             if blob and blob.metageneration == claim:
-                blob.metadata = {'voca': blob.metadata['voca']}
+                # GCS PATCH merges metadata maps; omission does not delete a key.
+                blob.metadata = {'voca': blob.metadata['voca'], 'processing': None}
                 blob.patch(if_metageneration_match=claim)
         except (NotFound, PreconditionFailed):
             pass

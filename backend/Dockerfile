@@ -8,7 +8,8 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends poppler-uti
 COPY requirements.lock ./
 RUN pip install --no-cache-dir -r requirements.lock
 
-COPY . .
+COPY scripts/dictionary_artifact.py scripts/dictionary_artifact.py
+COPY dictionary.lock.json dictionary.lock.json
 
 ARG DICTIONARY_ARTIFACT_URL
 ARG ALLOW_LOCAL_DICTIONARY_HTTP=0
@@ -21,6 +22,8 @@ RUN --mount=type=secret,id=gcp_adc --mount=type=secret,id=gcp_access_token \
     if [ -f /run/secrets/gcp_access_token ]; then set -- "$@" --access-token-file /run/secrets/gcp_access_token; fi; \
     GOOGLE_CLOUD_PROJECT="$GCP_PROJECT" python scripts/dictionary_artifact.py install --url "$DICTIONARY_ARTIFACT_URL" \
       --lockfile dictionary.lock.json --destination /opt/voca/dictionary "$@"
+
+COPY . .
 
 EXPOSE 8080
 

@@ -190,6 +190,11 @@ class UploadTests(unittest.TestCase):
         store.download('key', Path(self.tmp.name)/'file', {'generation': 23})
         bucket.blob.assert_called_with('key', generation=23)
         bucket.blob.return_value.download_to_filename.assert_called_once_with(str(Path(self.tmp.name)/'file'), if_generation_match=23, checksum='auto')
+        blob.metageneration = 9
+        blob.metadata = {'voca': '{}', 'processing': '123'}
+        store.release('key', 9)
+        self.assertIsNone(blob.metadata['processing'])
+        blob.patch.assert_called_once_with(if_metageneration_match=9)
 
     def test_explicit_ai_duplicate_processing_uses_one_receipt(self):
         upload, key = self.receive(pdf(image=True), 'scan.pdf', 'article')
