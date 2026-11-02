@@ -10,9 +10,20 @@ PR #5 was already merged on 2026-11-01; this upgrade was merged through
 [PR #6](https://github.com/li-minjian/Vocabulary-Learning-App/pull/6) as
 `c65052d193edd0da84a39520336cf120f67ded46` after staged backend acceptance.
 
-## Actual production release and rollback
+## Initial production release and rollback
 
 Canonical sanitized evidence: [production release](qa/production-release-2026-11-02.json).
+
+Reading & Typing upload increment: [PR #7](https://github.com/li-minjian/Vocabulary-Learning-App/pull/7)
+adds PDF/TXT/Markdown → editable preview → existing article save/session. Backend
+revision `vocabulary-learning-app-practice-5982771` uses image digest
+`sha256:8a06652fae66686db3fd17c0548a3fa949b5017f5c32459ef707beafd672d0c0`.
+It passed zero-traffic health/auth checks and Linux article-extraction tests before
+promotion. Runtime settings, GCS resources and original environment are unchanged.
+Its immediate rollback baseline is `vocabulary-learning-app-voca-7f63aa8` paired
+with Vercel commit `c65052d193edd0da84a39520336cf120f67ded46`. The final frontend
+deployment/merge SHA is recorded in PR #7's release evidence. The table below
+retains the initial platform-release snapshot, not the latest incremental revision.
 
 | Component | Actual release |
 | --- | --- |
