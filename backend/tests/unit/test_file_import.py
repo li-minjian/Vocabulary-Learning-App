@@ -85,22 +85,24 @@ def payload(rows=None, **kwargs):
             'conflict': 'skip', 'rows': rows or [{'row': 1, 'word': 'curious', 'translation': '好奇的'}], **kwargs}
 
 
-def apkg(compressed=False, modern=False):
+def apkg(compressed=False, modern=False, names=None, values=None):
+    names = names or ['Word', 'Translation', 'Example']
+    values = values or '<b>grüßen</b>\x1f问候<script>alert(1)</script>\x1fHallo<br>Welt'
     with tempfile.TemporaryDirectory() as directory:
         file = Path(directory) / 'deck.db'
         conn = sqlite3.connect(file)
         conn.execute('CREATE TABLE notes (id INTEGER, mid INTEGER, flds TEXT, tags TEXT)')
         conn.execute('CREATE TABLE cards (nid INTEGER, did INTEGER)')
-        conn.execute('INSERT INTO notes VALUES (1, 1, ?, ?)', ('<b>grüßen</b>\x1f问候<script>alert(1)</script>\x1fHallo<br>Welt', 'German A1'))
+        conn.execute('INSERT INTO notes VALUES (1, 1, ?, ?)', (values, 'German A1'))
         conn.execute('INSERT INTO cards VALUES (1, 5)')
         if modern:
             conn.execute('CREATE TABLE fields (ntid INTEGER, ord INTEGER, name TEXT)')
-            conn.executemany('INSERT INTO fields VALUES (1, ?, ?)', list(enumerate(['Word', 'Translation', 'Example'])))
+            conn.executemany('INSERT INTO fields VALUES (1, ?, ?)', list(enumerate(names)))
             conn.execute('CREATE TABLE decks (id INTEGER, name TEXT)')
             conn.execute("INSERT INTO decks VALUES (5, 'German::Greetings')")
         else:
             conn.execute('CREATE TABLE col (models TEXT, decks TEXT)')
-            conn.execute('INSERT INTO col VALUES (?, ?)', (json.dumps({'1': {'flds': [{'name': name} for name in ['Word', 'Translation', 'Example']]}}), json.dumps({'5': {'name': 'German::Greetings'}})))
+            conn.execute('INSERT INTO col VALUES (?, ?)', (json.dumps({'1': {'flds': [{'name': name} for name in names]}}), json.dumps({'5': {'name': 'German::Greetings'}})))
         conn.commit()
         conn.close()
         content = file.read_bytes()

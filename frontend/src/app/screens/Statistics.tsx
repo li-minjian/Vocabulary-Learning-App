@@ -1,3 +1,4 @@
+import { useVocabularyVersion } from '../hooks/useVocabularyVersion';
 import { TrendingUp, Calendar, Target, Clock } from 'lucide-react';
 import { useNavigate, useLocation } from "react-router";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -6,6 +7,7 @@ import { fetchStats } from '../../lib/api';
 import { TypingProgressSummary } from '../components/TypingProgressSummary';
 
 export function Statistics() {
+  const vocabularyVersion = useVocabularyVersion();
   const navigate = useNavigate();
   const location = useLocation();
   const data = location.state;
@@ -24,7 +26,7 @@ export function Statistics() {
         setError(err.message || 'Failed to load statistics');
         setLoading(false);
       });
-  }, []);
+  }, [vocabularyVersion]);
 
   if (loading) {
     return (

@@ -1,3 +1,4 @@
+import { useVocabularyVersion } from '../hooks/useVocabularyVersion';
 import { Plus, Upload, RotateCcw, TrendingUp, Book, Target, FolderOpen, Clock } from 'lucide-react';
 import { useNavigate } from "react-router";
 import { useState, useEffect } from 'react';
@@ -65,6 +66,7 @@ function getRelativeTimeString(dateStr?: string): string {
 }
 
 export function Dashboard() {
+  const vocabularyVersion = useVocabularyVersion();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +119,7 @@ export function Dashboard() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [vocabularyVersion]);
 
   if (loading) {
     return (

@@ -70,7 +70,9 @@ def preview():
 @file_import_bp.post('/commit')
 def commit():
     try:
-        result = commit_import(get_supabase(), g.user_id, request.get_json(silent=True))
+        from services.vocabulary_management import BackupStore
+        with BackupStore().lock(g.user_id):
+            result = commit_import(get_supabase(), g.user_id, request.get_json(silent=True))
         return jsonify(result)
     except ImportValidationError:
         raise

@@ -1,3 +1,4 @@
+import { useVocabularyVersion } from '../hooks/useVocabularyVersion';
 import { Plus, FolderOpen, Book, Loader2 } from 'lucide-react';
 import { useNavigate } from "react-router";
 import { useEffect, useState } from 'react';
@@ -5,6 +6,7 @@ import { fetchCollections, createCollection, type Collection } from '../../lib/a
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../components/ui/dialog';
 
 export function CollectionsHub() {
+  const vocabularyVersion = useVocabularyVersion();
   const navigate = useNavigate();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,7 +34,7 @@ export function CollectionsHub() {
 
   useEffect(() => {
     loadCollections();
-  }, []);
+  }, [vocabularyVersion]);
 
   const handleCreate = () => {
     setNewCollectionName('');

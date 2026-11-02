@@ -1,3 +1,4 @@
+import { suggestMapping, numericColumn, representative } from '../../lib/importMapping';
 import { useEffect, useRef, useState } from 'react';
 import { validateFile, cancelUpload, type UploadProgress } from '../../lib/uploads';
 import { Link } from 'react-router';
@@ -27,6 +28,7 @@ export function FileImport() {
   const [delimiter, setDelimiter] = useState('');
   const [header, setHeader] = useState('auto');
   const [parsed, setParsed] = useState<ParsedList | null>(null);
+  const [allowNumeric, setAllowNumeric] = useState(false);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [sourcePage, setSourcePage] = useState(0);
@@ -60,12 +62,8 @@ export function FileImport() {
       if (file) validateFile(file, 'file');
       const list = await parseList(file, text, delimiter, header, { signal: uploadController.current.signal, onProgress: setUploadProgress });
       const next: Record<string, string> = {};
-      fields.forEach(([key, , aliases]) => {
-        const index = list.columns.findIndex(column => (aliases as readonly string[]).includes(column.trim().toLowerCase()));
-        next[key] = index < 0 ? '' : String(index);
-      });
-      if (!next.word) next.word = '0';
-      if (!next.translation && list.columns.length > 1 && next.word !== '1') next.translation = '1';
+      fields.forEach(([key, , aliases]) => { next[key] = suggestMapping(list.columns, aliases); });
+      setAllowNumeric(false);
       // A new upload is a new import; retries retain this exact identity.
       list.import_id = `${list.import_id.slice(0, 64)}:${crypto.randomUUID()}`;
       setParsed(list); setMapping(next); setSelectedRows(new Set(list.row_numbers)); setSourcePage(0); setStage('map');
@@ -73,7 +71,7 @@ export function FileImport() {
     finally { setBusy(false); setUploadProgress(null); }
   }
   async function checkPreview() {
-    if (!parsed || mapping.word === '') return;
+    if (!parsed || !mapping.word || newCollection.trim() || collectionError || (numericColumn(parsed.rows, mapping.word) && !allowNumeric)) return;
     setBusy(true); setError('');
     try {
       const rows: ImportRow[] = parsed.rows.map((cells, index) => {
@@ -84,7 +82,7 @@ export function FileImport() {
         });
         return row;
       });
-      const request: ImportPayload = { import_id: parsed.import_id, rows: rows.filter(row => selectedRows.has(row.row)), language, collection_id: collectionId || null, conflict };
+      const request: ImportPayload = { import_id: parsed.import_id, rows: rows.filter(row => selectedRows.has(row.row)), language, collection_id: collectionId || null, conflict, allow_numeric: allowNumeric };
       setPreview(await previewList(request)); setPayload(request); setStage('confirm');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to check duplicates.'); }
     finally { setBusy(false); }
@@ -93,12 +91,13 @@ export function FileImport() {
     setBusy(true); setError('');
     try {
       const created = await createCollection({ name: newCollection.trim() });
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(created.id)) throw new Error('Collection creation was not confirmed. Retry before importing.');
       setCollections(previous => [...previous, created]); setCollectionId(created.id); setNewCollection('');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to create collection.'); }
     finally { setBusy(false); }
   }
   async function save() {
-    if (!payload) return;
+    if (!payload || busy) return;
     setBusy(true); setError(''); setProgress(0);
     const combined: ImportResult = { import_id: payload.import_id, imported: 0, resumed: 0, skipped: 0, invalid: 0, failed: 0, rows: [] };
     try {
@@ -147,7 +146,9 @@ export function FileImport() {
         <p className="text-sm text-muted-foreground">Only Word is required. Row language overrides the destination default; blank language cells use the default. Leave unavailable fields unmapped. Blank words are reported and skipped. Custom Anki note fields need manual mapping.</p>
         {parsed.warnings.map((warning, i) => <p key={i} className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{warning}</p>)}
         {!!parsed.invalid_rows.length && <p className="text-sm text-amber-900">{parsed.invalid_rows.length} rows have different column counts. Available cells remain mappable; missing values stay blank.</p>}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{fields.map(([key, label]) => <div key={key}><label className="mb-2 block text-sm font-semibold" htmlFor={`voca-map-${key}`}>{label}</label><select id={`voca-map-${key}`} className={inputStyle} value={mapping[key]} onChange={event => setMapping(current => ({ ...current, [key]: event.target.value }))}><option value="">Do not import</option>{parsed.columns.map((column, index) => <option key={index} value={String(index)}>{index + 1}. {column || '(unnamed column)'}</option>)}</select></div>)}</div>
+        {!mapping.word && <p role="alert" className="text-sm text-amber-900">Choose the Word column explicitly. Unknown or repeated headers are never mapped by position.</p>}
+        {numericColumn(parsed.rows, mapping.word) && <label className="block rounded-lg bg-amber-50 p-3 text-sm text-amber-900"><input type="checkbox" checked={allowNumeric} onChange={event => setAllowNumeric(event.target.checked)} /> This Word column contains numbers and may be an index or ID. I have checked the values and want to import numerical vocabulary.</label>}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{fields.map(([key, label]) => <div key={key}><label className="mb-2 block text-sm font-semibold" htmlFor={`voca-map-${key}`}>{label}</label><select id={`voca-map-${key}`} className={inputStyle} value={mapping[key]} onChange={event => { setAllowNumeric(false); setMapping(current => ({ ...current, [key]: event.target.value })); }}><option value="">Do not import</option>{parsed.columns.map((column, index) => <option key={index} value={String(index)}>{index + 1}. {column || '(unnamed column)'}</option>)}</select></div>)}</div>
         <div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="py-3 text-left text-xs text-muted-foreground">Source rows {sourcePage * 50 + 1}–{Math.min((sourcePage + 1) * 50, parsed.count)}. Choose the rows to include.</caption><thead><tr><th className="p-2">Include</th><th className="p-2">Row</th>{parsed.columns.map((column, i) => <th className="min-w-32 p-2" key={i}>{column}</th>)}</tr></thead><tbody>{parsed.rows.slice(sourcePage * 50, (sourcePage + 1) * 50).map((row, i) => {
           const number = parsed.row_numbers[sourcePage * 50 + i];
           return <tr key={number} className="border-t border-border"><td className="p-2"><input type="checkbox" aria-label={`Include source row ${number}`} checked={selectedRows.has(number)} onChange={event => setSelectedRows(previous => { const next = new Set(previous); if (event.target.checked) next.add(number); else next.delete(number); return next; })} /></td><td className="p-2">{number}</td>{parsed.columns.map((_, j) => <td key={j} className="max-w-80 whitespace-pre-wrap break-words p-2">{(row[j] || '').slice(0, 200)}</td>)}</tr>;
@@ -160,16 +161,18 @@ export function FileImport() {
         <div><label htmlFor="voca-conflict" className="mb-2 block text-sm font-semibold">Existing words</label><select id="voca-conflict" className={inputStyle} value={conflict} onChange={event => setConflict(event.target.value as 'skip' | 'keep_both')}><option value="skip">Skip duplicates (recommended)</option><option value="keep_both">Keep both as separate words</option></select></div></div>
         {collectionError && <p role="alert" className="text-sm text-red-700">{collectionError} <button className="underline" onClick={loadCollections}>Retry collections</button></p>}
         <div className="flex flex-wrap items-end gap-3"><div className="min-w-48 flex-1"><label htmlFor="voca-new-collection" className="mb-2 block text-sm font-semibold">Create a collection (optional)</label><input id="voca-new-collection" className={inputStyle} value={newCollection} onChange={event => setNewCollection(event.target.value)} maxLength={255} /></div><button className={buttonStyle} disabled={busy || !newCollection.trim()} onClick={addCollection}>Create collection</button></div>
-        <p className="text-xs text-muted-foreground">Duplicates use word + language, ignoring case and repeated spaces. Existing translations, notes and SRS history are never overwritten.</p>
+        {!!newCollection.trim() && <p role="alert" className="text-sm text-amber-900">Create this collection successfully or clear its name before continuing.</p>}
+        <p className="font-semibold">Destination: {collectionId ? collections.find(item => item.id === collectionId)?.name || 'Unavailable collection' : 'Library root'}</p>
+        <p className="text-xs text-muted-foreground">Duplicates are checked across every Collection. Skip preserves existing locations; Keep both creates new records in this destination. Duplicates use word + language, ignoring case and repeated spaces. Existing translations, notes and SRS history are never overwritten.</p>
       </section>
-      <div className="flex justify-between gap-3"><button className="text-sm underline" disabled={busy} onClick={() => setStage('upload')}>Change source</button><button className={buttonStyle} disabled={busy || mapping.word === '' || !selectedRows.size} onClick={checkPreview}>{busy && <Loader2 className="animate-spin" size={16} />} Check duplicates &amp; preview</button></div>
+      <div className="flex justify-between gap-3"><button className="text-sm underline" disabled={busy} onClick={() => setStage('upload')}>Change source</button><button className={buttonStyle} disabled={busy || !mapping.word || !selectedRows.size || !!newCollection.trim() || !!collectionError || (numericColumn(parsed.rows, mapping.word) && !allowNumeric)} onClick={checkPreview}>{busy && <Loader2 className="animate-spin" size={16} />} Check duplicates &amp; preview</button></div>
     </>}
     {(stage === 'confirm' || stage === 'result') && <section className="space-y-5 rounded-2xl border border-border bg-card p-6">
       <h2 className="flex items-center gap-2 text-lg font-bold">{stage === 'result' && <CheckCircle2 size={20} />} {stage === 'confirm' ? 'Review before importing' : result?.failed ? 'Import needs attention' : 'Import result'}</h2>
       <p className="text-sm">{stage === 'confirm' ? `${preview?.ready} ready · ${preview?.skipped} duplicates skipped · ${preview?.invalid} invalid rows` : `${result?.imported} imported · ${result?.resumed} recovered / already saved · ${result?.skipped} skipped · ${result?.invalid} invalid · ${result?.failed} failed`}</p>
-      {stage === 'confirm' && <p className="text-sm text-muted-foreground">Default language: {payload?.language} · Destination: {collections.find(collection => collection.id === payload?.collection_id)?.name || 'Library root'} · Duplicate policy: {payload?.conflict === 'skip' ? 'Skip' : 'Keep both'}. Existing vocabulary and review data will be preserved.</p>}
+      {stage === 'confirm' && <p className="rounded-lg bg-teal-50 p-3 text-sm font-semibold">Default language: {payload?.language} · Destination: {collections.find(collection => collection.id === payload?.collection_id)?.name || (payload?.collection_id ? 'Unavailable collection' : 'Library root')} · Duplicate policy: {payload?.conflict === 'skip' ? 'Skip' : 'Keep both'}. Existing vocabulary and review data will be preserved.</p>}
       {busy && <div role="status" aria-live="polite"><p className="mb-2 text-sm">Importing {progress} / {payload?.rows.length} rows…</p><progress className="h-2 w-full" value={progress} max={payload?.rows.length} /></div>}
-      <div className="max-h-96 overflow-auto"><table className="w-full text-left text-sm"><caption className="py-2 text-left text-xs text-muted-foreground">{resultRows.length > 100 ? `Showing first 100 of ${resultRows.length} rows. Download the full result below.` : 'Per-row import status'}</caption><thead><tr><th className="p-2">Row</th><th className="p-2">Word</th><th className="p-2">Status</th><th className="p-2">Details</th></tr></thead><tbody>{resultRows.slice(0, 100).map((row, i) => <tr key={i} className="border-t border-border"><td className="p-2">{row.row}</td><td className="p-2">{row.word || '—'}</td><td className="p-2">{row.status}{row.duplicate ? ' (duplicate)' : ''}</td><td className="p-2 text-muted-foreground">{row.message || ''}</td></tr>)}</tbody></table></div>
+      <div className="max-h-96 overflow-auto"><table className="w-full text-left text-sm"><caption className="py-2 text-left text-xs text-muted-foreground">{resultRows.length > 100 ? `Showing 100 evenly spaced samples of ${resultRows.length} rows. Download the full result below.` : 'Per-row import status'}</caption><thead><tr><th className="p-2">Row</th><th className="p-2">Word</th><th className="p-2">Translation</th><th className="p-2">Definition</th><th className="p-2">Example</th><th className="p-2">Language</th><th className="p-2">Destination</th><th className="p-2">Status</th><th className="p-2">Details</th></tr></thead><tbody>{representative(resultRows).map((row, i) => <tr key={i} className="border-t border-border"><td className="p-2">{row.row}</td><td className="p-2">{row.word || '—'}</td><td className="p-2">{row.translation || '—'}</td><td className="p-2">{row.definition || '—'}</td><td className="p-2">{row.examples?.[0]?.sentence || '—'}</td><td className="p-2">{row.language || payload?.language}</td><td className="p-2">{payload?.collection_id ? collections.find(item => item.id === payload.collection_id)?.name || 'Unavailable collection' : 'Library root'}</td><td className="p-2">{row.status}{row.duplicate ? ' (duplicate)' : ''}</td><td className="p-2 text-muted-foreground">{row.message || ''}</td></tr>)}</tbody></table></div>
       <div className="flex flex-wrap gap-4">{stage === 'confirm' ? <><button className="text-sm underline" disabled={busy} onClick={() => setStage('map')}>Back to mapping</button><button className={buttonStyle} disabled={busy || !preview?.ready} onClick={save}>{busy && <Loader2 className="animate-spin" size={16} />} Confirm import</button></> : <>
         {!!result?.failed && <button className={buttonStyle} disabled={busy} onClick={save}>Retry safely</button>}
         <Link to="/vocabulary" className={buttonStyle}>Open Vocabulary</Link>
