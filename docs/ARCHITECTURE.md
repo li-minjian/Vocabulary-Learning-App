@@ -50,22 +50,32 @@ Frontend builds to `frontend/dist`; existing Vercel config serves the SPA.
 Backend is an independently hosted Flask service (existing Cloud Run/Docker
 configuration). Backend Docker now installs the pinned dictionary artifact at build
 time, excludes local data/secrets, and runs non-root. GCS configuration templates
-exist under `deploy/gcs`; **no actual production resources/configuration were changed**.
+exist under `deploy/gcs`; the user subsequently authorized and completed the
+production resource/configuration deployment recorded below.
 See [production runbook](PRODUCTION-UPGRADE.md) for approval steps and exact limits.
 
 Read-only Cloud Run inspection on 2026-11-02 identified `voca-497321` /
 `europe-west1` / `vocabulary-learning-app`: 1 CPU, 512 MiB, concurrency 80,
-300-second timeout. Proposed parsing headroom (1 GiB/concurrency 8) is not applied.
+300-second timeout. Release revision `vocabulary-learning-app-voca-7f63aa8` now
+serves 100% traffic with 1 CPU/1 GiB/concurrency 8/min0/max2/timeout300. Its runtime
+account `voca-runtime` has only private upload-bucket access and self-signBlob.
+The published dictionary is in `voca-497321-dictionary-171081604096`; temporary
+uploads use `voca-497321-uploads-171081604096` with exact-origin CORS and one-day
+lifecycle. No existing application records, schema or RLS changed.
 
-**Unknown — Not verified:** current production backend revision, deployed
-Supabase constraints and RLS behavior. Zero-row anonymous PostgREST requests verified
+**Unknown — Not verified:** authenticated production behavior and deployed
+Supabase constraints/RLS. Production service/release metadata is recorded above.
+Zero-row anonymous PostgREST requests verified
 all columns consumed by the new features in seven existing tables (HTTP200); no
 user rows were requested. Earlier Vercel read-only metadata identified
 `30f343f8494e7066c1defd374810017c4ac9da5e` on `main`; frontend deployment was
 not reverified during the focused infrastructure assignment. PR #5 was subsequently
 merged externally as `368d3fa63861391eac278c84ca39fdcdaffc68d8`. This assignment
-continues on the same feature branch with a follow-up draft PR; no merge or
-production deployment is performed by this work.
+continued on the same feature branch. The authorized release merged PR #6 as
+`c65052d193edd0da84a39520336cf120f67ded46`; Vercel production deployment
+`dpl_BU7qLcRVdu42wo7VxX55wkaoHMMV` is READY and serves that SHA at the unchanged
+public domain. [Production evidence](qa/production-release-2026-11-02.json) separates
+real public/cloud checks from the user-accepted authenticated E2E gap.
 
 ## Frontend structure and routes
 
@@ -230,7 +240,9 @@ SQLite index; this is a derived dictionary file, not another user-data store.
 Build-time verified GCS artifact delivery installs the immutable SQLite/manifest in
 the image, with no startup download or RAM reconstruction. Public readiness checks
 both language/form indexes and metadata; full hash/count/integrity checks run in
-the build. The release was packaged and tested locally, **not yet published**.
+the build. The release was published privately and installed/verified in the
+production image; there is no startup download. See the runbook for exact object,
+generation, image digest and rollback references.
 Priority is cached result → exact installed entry → dataset lemma/forms → verified
 English suffix candidates → clear local miss. Phrases use the same installed
 entries. Query paths perform no network downloads/model calls.
@@ -248,6 +260,16 @@ only: user content, AI output and SRS never enter this shared cache. AI results
 remain selected-panel state; no persistent AI cache was introduced.
 
 ## Typing, rendering and learning progress
+
+`/practice` accepts PDF, UTF-8 TXT and Markdown (`.md`/`.markdown`) beside the
+existing paste editor. It uses the same authenticated article upload workflow,
+50 MiB policy, object ownership and PDF extraction. TXT/Markdown are read locally
+with a 100,000-character cap; Markdown source stays editable plain text. Upload
+progress, cancel/retry and errors retain the draft until extraction succeeds.
+Filename title suggestions preserve manual edits and the selected language.
+Preview is editable before the existing `saveArticle` call (`source_type=text_file`)
+creates the article and navigates to its practice session. Scan PDFs require a
+separate explicit AI click; neither text extraction nor saving requests AI.
 
 **As-Is — Implemented:** `lib/typingEngine.ts` owns pure input/metrics/restore logic;
 `ArticleTypingSurface.tsx` renders Unicode character/word spans, feedback, caret,

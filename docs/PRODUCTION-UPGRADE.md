@@ -1,12 +1,96 @@
 # Dictionary delivery and 50 MiB upload runbook
 
-Status, 2026-11-02: **Implemented and locally verified. Not cloud-verified.**
-No buckets, IAM bindings, secrets, environment files or production deployments
-were changed. Commands below are operator templates requiring separate approval.
+Status, 2026-11-02: **Production deployed; acceptance PARTIAL only for authenticated
+Cloud Run/browser verification**, explicitly deferred by the user because no
+dedicated test account is available. Real private GCS uploads and production public
+health/browser checks passed. No existing application records, schema or RLS changed.
+The user authorized the resource/IAM/runtime/traffic changes in this release.
 The current branch continues the work from [PR #5](https://github.com/li-minjian/Vocabulary-Learning-App/pull/5).
-GitHub inspection found #5 already merged on 2026-11-01; this upgrade is in
-[draft PR #6](https://github.com/li-minjian/Vocabulary-Learning-App/pull/6) from the
-same feature branch. It is not part of that earlier merge.
+PR #5 was already merged on 2026-11-01; this upgrade was merged through
+[PR #6](https://github.com/li-minjian/Vocabulary-Learning-App/pull/6) as
+`c65052d193edd0da84a39520336cf120f67ded46` after staged backend acceptance.
+
+## Initial production release and rollback
+
+Canonical sanitized evidence: [production release](qa/production-release-2026-11-02.json).
+
+Reading & Typing upload increment: [PR #7](https://github.com/li-minjian/Vocabulary-Learning-App/pull/7)
+adds PDF/TXT/Markdown → editable preview → existing article save/session. Backend
+revision `vocabulary-learning-app-practice-5982771` uses image digest
+`sha256:8a06652fae66686db3fd17c0548a3fa949b5017f5c32459ef707beafd672d0c0`.
+It passed zero-traffic health/auth checks and Linux article-extraction tests before
+promotion. Runtime settings, GCS resources and original environment are unchanged.
+Its immediate rollback baseline is `vocabulary-learning-app-voca-7f63aa8` paired
+with Vercel commit `c65052d193edd0da84a39520336cf120f67ded46`. The final frontend
+deployment/merge SHA is recorded in PR #7's release evidence. The table below
+retains the initial platform-release snapshot, not the latest incremental revision.
+
+| Component | Actual release |
+| --- | --- |
+| Private artifact bucket | `voca-497321-dictionary-171081604096`, europe-west1, uniform access + PAP enforced |
+| Private upload bucket | `voca-497321-uploads-171081604096`, europe-west1, uniform access + PAP enforced |
+| Artifact | `gs://voca-497321-dictionary-171081604096/dictionary/2026-11-01.1/voca-dictionary-2026-11-01.1.sqlite3.zst` |
+| Artifact generation | `1793627816400999`; 79,029,124 bytes, verified by build download against the locked SHA |
+| Cloud Run production revision | `vocabulary-learning-app-voca-7f63aa8`, 100% traffic |
+| Image source | `7f63aa8fd8c804c42a1d980041e52a89087040d0` |
+| Immutable image | `europe-west1-docker.pkg.dev/voca-497321/cloud-run-source-deploy/vocabulary-learning-app/vocabulary-learning-app@sha256:5ce921d2add7094c72c6309211cc14fa9b80b5e00d7648c2f54c799d7e2fe66f` |
+| Runtime | 1 CPU / 1 GiB / concurrency 8 / min 0 / max 2 / 300s request timeout |
+| Runtime/signing identity | `voca-runtime@voca-497321.iam.gserviceaccount.com` |
+| Vercel production | `dpl_BU7qLcRVdu42wo7VxX55wkaoHMMV`, READY, merge commit `c65052d193edd0da84a39520336cf120f67ded46` |
+| Public domain | https://voca118.vercel.app — unchanged |
+
+Production and preview Vercel environments already share the configured backend
+URL. Backend was staged at 0%, verified, then promoted before the frontend release.
+Vercel rejected direct preview promotion (422); the existing Git main production
+pipeline was used successfully instead. Domain metadata and served JavaScript
+were checked after release: correct Cloud Run URL, 50 MiB policy and GCS client.
+
+The prior observed rollback pair is retained:
+
+- Cloud Run `vocabulary-learning-app-00030-c95`, image digest
+  `sha256:6408ffe574e2f63e738c728f25d0dd1899069ef9f42c8b615c413c18398974b5`.
+- Vercel `dpl_Hd7KTfknpsGz3FpjWXafwfeNx5ys`,
+  `https://voca-d55k82pbl-min-s-projects118.vercel.app`, commit
+  `368d3fa63861391eac278c84ca39fdcdaffc68d8`.
+
+Restore both together if a critical regression occurs:
+
+```bash
+gcloud run services update-traffic vocabulary-learning-app --project=voca-497321 \
+  --region=europe-west1 --to-revisions=vocabulary-learning-app-00030-c95=100
+```
+
+Then request Vercel Instant Rollback for project `prj_JwFkAq4kAEPRzgLRXypFTytSgXHd`
+to `dpl_Hd7KTfknpsGz3FpjWXafwfeNx5ys` (the connected `request_rollback` tool or
+Vercel deployment dashboard). Recheck both health and domain metadata. No rollback
+was executed; references/old images were preserved. This is the observed prior
+pair, not a claim that its older backend supported every PR #5 frontend feature.
+Do not delete dictionary artifacts or user data during rollback.
+
+Actual cloud checks: ready200, auth401, exact-origin CORS, Supabase settings200,
+unchanged prior environment values and zero observed ERROR log entries. Available
+memory telemetry after health requests was about 12–13% of 1 GiB; this is not a
+large-file parsing peak measurement. The published image independently passed
+offline English/German lookup, misses, non-root and absent-build-token checks.
+
+Real GCS checks used the runtime identity: signed upload, wrong key/size, stale
+generation, wrong owner, application expiry and expired signature, duplicate
+processing, cancellation, CSV/TSV/TXT, exactly 50 MiB CSV/PDF/APKG and a rejected
+52,428,801-byte upload. Parsing ran in production service code locally against
+real GCS, **not through an authenticated Cloud Run request**. A stuck scan lease
+was found and fixed: GCS PATCH requires explicit `processing: null` to remove the
+metadata key. The targeted cloud retest confirmed immediate re-claim and cleanup;
+only exact recorded synthetic objects were removed. Ordinary paths made no AI calls.
+
+Public Chrome checks covered login, protected redirects, mobile overflow and
+runtime errors. Dashboard/private CRUD, authenticated dictionary/processing,
+Save-to-Vocabulary and Review/SRS remain unverified online. The user explicitly
+accepted this gap; no personal JWT, personal account or auth bypass was used.
+
+Antigravity recovery is **COMPLETE**: official PowerShell 7.6.9 ARM64 user install,
+then real Flash Medium and a fresh-process default-discovery Flash Low result,
+both `WORKER_SUCCEEDED/PASS`. See [execution evidence](qa/antigravity-recovery-2026-11-02.json).
+These pure-read tasks do not establish untested controlled-write broker behavior.
 
 ## Approval boundary and observed service
 
@@ -15,7 +99,8 @@ Read-only inspection identified project `voca-497321`, Cloud Run service
 80, timeout 300 seconds. No change was applied. Frontend remains Vercel; application
 data/auth remain Supabase. No schema/RLS changes are required.
 
-Approve these concrete steps before enabling production:
+The authorized deployment applied these prerequisites (templates retained below
+for future reproducibility):
 
 1. Create two dedicated **private** Standard GCS buckets in `europe-west1`: one
    immutable versioned dictionary-artifact bucket and one temporary upload bucket.
@@ -30,11 +115,11 @@ Approve these concrete steps before enabling production:
 4. Apply approved-origin CORS and one-day lifecycle, then supply runtime settings
    `UPLOAD_PROVIDER=gcs`, `UPLOAD_BUCKET`, `UPLOAD_SIGNER_EMAIL` through the
    normal approved environment-management process. Do not edit secret files.
-5. Build/push a `linux/amd64` image using short-lived build credentials. After
-   separate deployment approval, deploy the image and verify the actual GCS/CORS/
-   signing/Cloud Run path with a dedicated test user. Recommended initial resource
-   settings are 1 CPU / **1 GiB**, concurrency **8**, min instances 0, max instances
-   2, existing 300-second timeout. This is headroom for bounded PDF/APKG processing
+5. Build/push a `linux/amd64` image using short-lived build credentials, stage at
+   zero traffic, check public health and real GCS, then promote. A dedicated user
+   was unavailable, so authenticated Cloud Run verification remains deferred.
+   Applied settings are 1 CPU / **1 GiB**, concurrency **8**, min instances 0,
+   max instances 2, existing 300-second timeout. This is headroom for bounded PDF/APKG processing
    and tmpfs, not an assumption that the dictionary must be loaded into RAM.
 
 ## Pinned dictionary and publication
@@ -51,8 +136,8 @@ The source snapshot and its attribution remain in [DICTIONARY.md](DICTIONARY.md)
 | Artifact bytes | 79,029,124 |
 | Artifact SHA-256 | `760f954052a785fe5b19295ff89ea0041dd2f3dbea49d3ce9f884b411296bfc1` |
 
-The validated existing snapshot was packaged locally, **not published**. In this
-session the staged artifact is
+The validated existing snapshot was packaged and **published privately** at the
+versioned object above; source snapshots were not refreshed. The local copy is
 `backend/data/dictionary/voca-dictionary-2026-11-01.1.sqlite3.zst` (Git-ignored).
 Archive that release output in approved storage; a local checkout is not cloud
 distribution. Production builds use the published GCS object and Git lock only,
@@ -85,8 +170,12 @@ by `zstandard==0.25.0`; changing tooling can change artifact bytes and requires 
 
 ## IAM, bucket policy and CORS templates
 
-Templates are in `deploy/gcs/`. IAM custom roles require operator creation and
-binding; none have been created by this task.
+Templates are in `deploy/gcs/`. Applied custom roles are `vocaDictionaryReader`,
+`vocaTemporaryUploads`, `vocaUploadSigner`, `vocaArtifactPublisher` and
+`vocaBuildToken`. Runtime, builder and publisher are separate service accounts.
+No new Owner/Editor grant or service-account key was created. Existing deployment
+administrator permissions were left unchanged. Temporary deployment-user token
+permission on the runtime account was removed after real-GCS checks.
 
 | Identity | Permission / scope |
 | --- | --- |
@@ -102,7 +191,7 @@ role is needed. Build credentials use Workload Identity Federation or another
 approved short-lived ADC file passed as a BuildKit secret; do not bake ADC into COPY,
 build args, environment layers or logs.
 
-Example new-bucket configuration commands, **not executed**:
+Reproduction templates (actual chosen names and results are recorded above):
 
 ```bash
 gcloud storage buckets create "gs://${VOCA_UPLOAD_BUCKET}" --project=voca-497321 \
@@ -132,9 +221,20 @@ requires an explicit reviewed pin refresh; byte-identical OCI images are not cla
 ```bash
 docker build --platform linux/amd64 \
   --secret id=gcp_adc,src="${VOCA_BUILD_ADC_FILE}" \
+  --build-arg GCP_PROJECT=voca-497321 \
   --build-arg "DICTIONARY_ARTIFACT_URL=gs://${VOCA_ARTIFACT_BUCKET}/dictionary/2026-11-01.1/voca-dictionary-2026-11-01.1.sqlite3.zst" \
   -t "${VOCA_APPROVED_IMAGE}" backend
 ```
+
+The executed build used a restricted, one-hour `voca-image-builder` OAuth token
+mounted as `gcp_access_token`, not a downloadable service-account key. ADC remains
+supported. The equivalent build selects `--secret id=gcp_access_token,src=...` and
+`--build-arg GCP_PROJECT=voca-497321`. Only the deployment caller gets
+`iam.serviceAccounts.getAccessToken` on builder/publisher accounts, not project-wide
+Token Creator. Registry writer is scoped to the existing repository. Token files
+and isolated Docker login config were removed after successful push. Immutable
+artifact installation now precedes application COPY, so normal code changes can
+reuse the dictionary layer without another download.
 
 The installer pins the GCS generation, checks compressed size/hash, bounds expansion,
 checks SQLite size/hash/integrity/indexes/counts/source metadata and installs only
@@ -211,7 +311,7 @@ text-PDF paths make zero model calls. Price totals depend on usage and current
 - 422 resource error: split PDF/deck/list. A file within 50 MiB can exceed content budgets.
 - Local PDF 503: install Poppler utilities; Docker already includes the pinned package.
 
-Remaining cloud acceptance after approval: use a dedicated test user from Vercel
+Remaining authenticated acceptance: use a dedicated test user from Vercel
 to upload exactly 50 MiB, verify GCS stored bytes and generation, finalize, confirm
 an import, repeat finalization, test wrong-user/expiry/cancel and verify lifecycle.
 No fixture test is a substitute for this actual cloud verification.

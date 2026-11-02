@@ -1,0 +1,306 @@
+{
+  "date": "2026-11-02",
+  "deployment_status": "DEPLOYED",
+  "acceptance_status": "PARTIAL: authenticated Cloud Run/browser E2E explicitly deferred by user because no dedicated test account",
+  "project": "voca-497321",
+  "region": "europe-west1",
+  "buckets": {
+    "artifact": "voca-497321-dictionary-171081604096",
+    "upload": "voca-497321-uploads-171081604096"
+  },
+  "dictionary": {
+    "artifact_uri": "gs://voca-497321-dictionary-171081604096/dictionary/2026-11-01.1/voca-dictionary-2026-11-01.1.sqlite3.zst",
+    "generation": 1793627816400999,
+    "bytes": 79029124,
+    "crc32c": "6g3uUg==",
+    "sha256": "760f954052a785fe5b19295ff89ea0041dd2f3dbea49d3ce9f884b411296bfc1",
+    "manifest_generation": 1793627816704344
+  },
+  "image": {
+    "tag": "europe-west1-docker.pkg.dev/voca-497321/cloud-run-source-deploy/vocabulary-learning-app/vocabulary-learning-app:voca-7f63aa8",
+    "digests": [
+      "europe-west1-docker.pkg.dev/voca-497321/cloud-run-source-deploy/vocabulary-learning-app/vocabulary-learning-app@sha256:5ce921d2add7094c72c6309211cc14fa9b80b5e00d7648c2f54c799d7e2fe66f"
+    ],
+    "id": "sha256:5ce921d2add7094c72c6309211cc14fa9b80b5e00d7648c2f54c799d7e2fe66f",
+    "architecture": "amd64",
+    "git_sha": "7f63aa8fd8c804c42a1d980041e52a89087040d0"
+  },
+  "cloud_run": {
+    "service": "vocabulary-learning-app",
+    "production_revision": "vocabulary-learning-app-voca-7f63aa8",
+    "traffic_percent": 100,
+    "cpu": 1,
+    "memory": "1Gi",
+    "concurrency": 8,
+    "min_instances": 0,
+    "max_instances": 2,
+    "timeout_seconds": 300,
+    "runtime_identity": "voca-runtime@voca-497321.iam.gserviceaccount.com",
+    "prior_environment_preserved": true,
+    "dictionary_health_http": 200,
+    "unauthenticated_upload_and_dictionary_http": 401,
+    "error_log_entries_observed": 0,
+    "memory_observation": {
+      "http": 200,
+      "memory_utilization_samples": [
+        0.12490463256835938,
+        0.12453842163085938,
+        0.12437820434570312,
+        0.11900711059570312,
+        0.13142776489257812
+      ]
+    }
+  },
+  "vercel": {
+    "project": "voca",
+    "production_url": "https://voca118.vercel.app",
+    "deployment_id": "dpl_BU7qLcRVdu42wo7VxX55wkaoHMMV",
+    "deployment_url": "https://voca-qyt3iulnu-min-s-projects118.vercel.app",
+    "state": "READY",
+    "commit": "c65052d193edd0da84a39520336cf120f67ded46",
+    "pr6_merged": true
+  },
+  "verification": {
+    "real_gcs": [
+      {
+        "check": "signed-policy-and-generation",
+        "substitution_rejected": true,
+        "size_mismatch_rejected": true,
+        "stale_generation_rejected": true
+      },
+      {
+        "check": "cancel",
+        "deleted": true
+      },
+      {
+        "check": "expiry",
+        "processing_410": true,
+        "expired_signed_policy_rejected": true,
+        "expired_signed_policy_status": 400
+      },
+      {
+        "check": "small.csv",
+        "bytes": 33,
+        "generation": 1793628393770710,
+        "cors": true,
+        "wrong_user_rejected": true,
+        "duplicate_receipt": true,
+        "input_deleted": true,
+        "rows": 1,
+        "text_ok": false,
+        "needs_ocr": null
+      },
+      {
+        "check": "small.tsv",
+        "bytes": 32,
+        "generation": 1793628395160325,
+        "cors": true,
+        "wrong_user_rejected": true,
+        "duplicate_receipt": true,
+        "input_deleted": true,
+        "rows": 1,
+        "text_ok": false,
+        "needs_ocr": null
+      },
+      {
+        "check": "small.txt",
+        "bytes": 24,
+        "generation": 1793628396683186,
+        "cors": true,
+        "wrong_user_rejected": true,
+        "duplicate_receipt": true,
+        "input_deleted": true,
+        "rows": 1,
+        "text_ok": false,
+        "needs_ocr": null
+      },
+      {
+        "check": "50-mib-plus-one",
+        "bytes": 52428801,
+        "gcs_status": 400
+      },
+      {
+        "check": "50-mib.csv",
+        "bytes": 52428800,
+        "rows": 4370,
+        "gcs_generation": 1793628404311755,
+        "parsed": true,
+        "input_deleted": true
+      },
+      {
+        "check": "50-mib.pdf",
+        "bytes": 52428800,
+        "generation": 1793628436641834,
+        "cors": true,
+        "wrong_user_rejected": true,
+        "duplicate_receipt": true,
+        "input_deleted": true,
+        "rows": null,
+        "text_ok": true,
+        "needs_ocr": false
+      },
+      {
+        "check": "50-mib.apkg",
+        "bytes": 52428800,
+        "generation": 1793628460993146,
+        "cors": true,
+        "wrong_user_rejected": true,
+        "duplicate_receipt": true,
+        "input_deleted": true,
+        "rows": 1,
+        "text_ok": false,
+        "needs_ocr": null
+      },
+      {
+        "check": "scan.pdf",
+        "bytes": 764,
+        "generation": 1793628466081550,
+        "cors": true,
+        "wrong_user_rejected": true,
+        "duplicate_receipt": true,
+        "input_deleted": false,
+        "rows": null,
+        "text_ok": false,
+        "needs_ocr": true
+      },
+      {
+        "check": "scope",
+        "actual_cloud_storage": true,
+        "parser_execution": "local production service code against real GCS; authenticated Cloud Run requests pending dedicated test account",
+        "ai_calls": 0
+      },
+      {
+        "check": "cleanup",
+        "created_uploads": 9,
+        "failed_cleanups": [
+          "UploadError"
+        ],
+        "resolution": "Observed stuck lease; fixed using metadata processing:null. Targeted real-GCS retest passed and exact recorded residual objects were removed; see gcs_lease_fix."
+      }
+    ],
+    "gcs_lease_fix": {
+      "actual_gcs_lease_removed": true,
+      "next_processing_claim_immediately_available": true,
+      "cancel_cleanup_passed": true,
+      "old_confirmed_smoke_objects_cleaned": true
+    },
+    "published_image_offline_dictionary": {
+      "ready": true,
+      "english": "hello",
+      "german": "Haus",
+      "miss": true,
+      "uid": 10001,
+      "offline": true,
+      "build_token_absent": true,
+      "image_source": "7f63aa8"
+    },
+    "public_browser": {
+      "scope": "production public login and protected-route redirects only; authenticated UI not tested",
+      "routes": [
+        {
+          "route": "/login",
+          "status": 200,
+          "actualPath": "/login"
+        },
+        {
+          "route": "/vocabulary",
+          "status": 200,
+          "actualPath": "/login"
+        },
+        {
+          "route": "/collections",
+          "status": 200,
+          "actualPath": "/login"
+        },
+        {
+          "route": "/import/files",
+          "status": 200,
+          "actualPath": "/login"
+        },
+        {
+          "route": "/practice",
+          "status": 200,
+          "actualPath": "/login"
+        },
+        {
+          "route": "/review",
+          "status": 200,
+          "actualPath": "/login"
+        },
+        {
+          "route": "/statistics",
+          "status": 200,
+          "actualPath": "/login"
+        }
+      ],
+      "runtimeErrors": [],
+      "automaticAiRequests": 0,
+      "mobileLoginHorizontalOverflow": false
+    },
+    "frontend_bundle": {
+      "frontend_http": 200,
+      "new_50_mib_policy_present": true,
+      "signed_gcs_upload_client_present": true,
+      "backend_urls": [
+        "https://vocabulary-learning-app-171081604096.europe-west1.run.app"
+      ]
+    },
+    "important_scope": "GCS was real, with the runtime identity and exact-size uploads. Parsing was exercised by production service code locally against GCS. Protected Cloud Run processing, authenticated dictionary API and logged-in browser CRUD/SRS were not exercised. No personal JWT or auth bypass was used.",
+    "tests": "Previous 58 Python +10 fixture Chrome +7 frontend tests; deployment-specific artifact4 and upload17 passed; Vercel production build READY."
+  },
+  "rollback": {
+    "cloud_run_revision": "vocabulary-learning-app-00030-c95",
+    "cloud_run_image": "europe-west1-docker.pkg.dev/voca-497321/cloud-run-source-deploy/vocabulary-learning-app/vocabulary-learning-app@sha256:6408ffe574e2f63e738c728f25d0dd1899069ef9f42c8b615c413c18398974b5",
+    "vercel_deployment_id": "dpl_Hd7KTfknpsGz3FpjWXafwfeNx5ys",
+    "vercel_url": "https://voca-d55k82pbl-min-s-projects118.vercel.app",
+    "vercel_commit": "368d3fa63861391eac278c84ca39fdcdaffc68d8",
+    "scope": "Observed pre-release pair retained; its older backend did not include PR5 feature implementation. No authenticated baseline acceptance was available."
+  },
+  "security": {
+    "private_uniform_access_and_pap": true,
+    "cors_origin": "https://voca118.vercel.app",
+    "upload_lifecycle_age_days": 1,
+    "upload_soft_delete_disabled": true,
+    "upload_versioning_disabled": true,
+    "new_service_account_keys": 0,
+    "temporary_runtime_impersonation_removed": true,
+    "cloud_apis": "Required APIs were already enabled; no unrelated APIs enabled",
+    "existing_application_records_changed": false,
+    "anonymous_artifact_get_status": 403,
+    "confirmed_test_prefix_objects_remaining": 0,
+    "actual_upload_bucket_configuration": {
+      "cors": [
+        {
+          "origin": [
+            "https://voca118.vercel.app"
+          ],
+          "method": [
+            "POST"
+          ],
+          "responseHeader": [
+            "Content-Type",
+            "ETag"
+          ],
+          "maxAgeSeconds": 600
+        }
+      ],
+      "lifecycle": [
+        {
+          "action": {
+            "type": "Delete"
+          },
+          "condition": {
+            "age": 1,
+            "matchesPrefix": [
+              "voca/tmp/"
+            ]
+          }
+        }
+      ],
+      "uniform_access": true,
+      "pap": "enforced",
+      "versioning": false,
+      "soft_delete_seconds": 0
+    }
+  }
+}

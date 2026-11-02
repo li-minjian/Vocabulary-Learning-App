@@ -45,7 +45,7 @@ class UploadService:
         self.store, self.clock = store, clock
 
     def key(self, user_id, upload_id):
-        if not isinstance(upload_id, str) or not re.fullmatch(r'[0-9a-f]{32}\.(csv|tsv|txt|apkg|pdf|png|jpe?g)', upload_id):
+        if not isinstance(upload_id, str) or not re.fullmatch(r'[0-9a-f]{32}\.(csv|tsv|txt|md|markdown|apkg|pdf|png|jpe?g)', upload_id):
             raise UploadError('Invalid upload identifier.')
         owner = hashlib.sha256(str(user_id).encode()).hexdigest()[:32]
         return f'voca/tmp/{owner}/{upload_id}', owner
@@ -115,17 +115,30 @@ class UploadService:
                     raise UploadError('The file is not a PNG image.')
                 if extension in ('jpg', 'jpeg') and not prefix.startswith(b'\xff\xd8\xff'):
                     raise UploadError('The file is not a JPEG image.')
-                if extension in ('csv', 'tsv', 'txt') and prefix.startswith((b'%PDF-', b'PK\x03\x04', b'\x89PNG', b'\xff\xd8\xff')):
-                    raise UploadError('File content does not match a text vocabulary list.')
+                if extension in ('csv', 'tsv', 'txt', 'md', 'markdown') and prefix.startswith((b'%PDF-', b'PK\x03\x04', b'\x89PNG', b'\xff\xd8\xff')):
+                    raise UploadError('File content does not match a text document.')
                 if data['workflow'] == 'file':
                     result = parse_vocabulary(path, metadata['filename'], settings)
                 elif method == 'local':
                     if extension == 'pdf':
                         from services.pdf_extract import extract_pdf
                         result = extract_pdf(path)
+                    elif extension in ('txt', 'md', 'markdown'):
+                        from services.pdf_extract import MAX_TEXT
+                        try:
+                            with path.open(encoding='utf-8-sig') as source:
+                                text = source.read(MAX_TEXT + 1)
+                        except UnicodeError as error:
+                            raise UploadError('Save the text document as UTF-8 (BOM is supported).', 422) from error
+                        if len(text) > MAX_TEXT:
+                            raise UploadError('Article exceeds 100,000 characters. Split the document.', 422)
+                        if not text.strip() or any(ord(char) < 32 and char not in '\t\n\r' for char in text):
+                            raise UploadError('The document is empty or contains unsupported binary/control characters.', 422)
+                        result = {'text': text.strip(), 'needs_ocr': False, 'method': 'local',
+                                  'warnings': ['Markdown formatting is kept as editable plain text.'] if extension != 'txt' else []}
                     else:
                         result = {'text': '', 'needs_ocr': True, 'method': 'local', 'warnings': ['Image extraction requires an explicit AI action.']}
-                    result['ai_allowed'] = metadata['size'] <= 20 * 1024 * 1024 and result.get('pages', 1) <= 100
+                    result['ai_allowed'] = result['needs_ocr'] and metadata['size'] <= 20 * 1024 * 1024 and result.get('pages', 1) <= 100
                 else:
                     previous = self.store.receipt(key, 'local')
                     if not previous or not previous['result'].get('needs_ocr') or previous['result'].get('pages', 1) > 100:

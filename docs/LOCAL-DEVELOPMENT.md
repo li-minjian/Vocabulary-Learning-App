@@ -79,6 +79,12 @@ Acceptance checklist:
   Unicode, selected rows, collection, duplicates, results and retry.
 - Open **Reading & Typing**, save an article, type in the original text, correct a
   mistake, pause/reload/resume and restart. Check copy metrics separately from SRS.
+- Or choose **Upload file** on `/practice`: PDF/TXT/MD → editable preview →
+  **Save & start practice**. Keep/edit the suggested filename title and language.
+  Files accept up to 50 MiB; extracted articles accept up to 100,000 characters,
+  with PDF up to 200 pages. TXT/Markdown must be UTF-8 (BOM supported); Markdown
+  syntax is retained as text. Scans offer explicit OCR/AI consent only. Extraction
+  errors/cancel preserve the existing draft. No separate backend or schema change.
 - Click a word/phrase; inspect source, local meanings/forms, save Vocabulary and
   verify Review. Unknown meanings show a local miss. Only **Ask AI** requests AI.
 - Article Import still supports explicit AI analysis and optional explicit enrichment.
