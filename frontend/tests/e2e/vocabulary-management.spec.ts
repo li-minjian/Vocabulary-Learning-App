@@ -11,23 +11,23 @@ async function signIn(page: Page) {
 async function parse(page: Page, text: string, header = false) {
   await page.goto('/import/files');
   await page.getByLabel('Or paste a vocabulary list').fill(text);
-  if (header) await page.getByLabel('First row', { exact: true }).selectOption('true');
-  await page.getByRole('button', { name: 'Parse list' }).click();
-  await expect(page.getByRole('heading', { name: /Map your/ })).toBeVisible();
+  if (header) { await page.getByText('Text file options', { exact: true }).click(); await page.getByLabel('First row', { exact: true }).selectOption('true'); }
+  await page.getByRole('button', { name: 'Analyze file' }).click();
+  await expect(page.getByRole('heading', { name: /entries analyzed/ })).toBeVisible();
 }
 test('ambiguous and numeric mappings blocked, pending collection and failure, verified collection persistence', async ({ page }) => {
   let ai = 0; const commits: any[] = [];
   page.on('request', request => { if (/\/api\/(ai|import\/(analyze|extract-text))/.test(request.url())) ai++; if (request.url().endsWith('/api/file-import/commit')) commits.push(request.postDataJSON()); });
   await signIn(page);
   await parse(page, 'Index,Custom expression,Custom meaning\n1,alpha,first\n2,beta,second', true);
-  await expect(page.getByLabel('Word / phrase (required)')).toHaveValue('');
-  await expect(page.getByLabel('Translation', { exact: true })).toHaveValue('');
+  await expect(page.getByTestId('preview-word')).toHaveText('Choose the words or phrases you want to learn');
+  await expect(page.getByTestId('preview-translation')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Check duplicates & preview' })).toBeDisabled();
-  await page.getByLabel('Word / phrase (required)').selectOption('0');
+  await page.getByRole('button', { name: 'Change Word / phrase source', exact: true }).click(); await page.getByLabel('Word / phrase source', { exact: true }).selectOption('0');
   await expect(page.getByText(/may be an index or ID/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Check duplicates & preview' })).toBeDisabled();
-  await page.getByLabel('Word / phrase (required)').selectOption('1');
-  await page.getByLabel('Translation', { exact: true }).selectOption('2');
+  await page.getByRole('button', { name: 'Change Word / phrase source', exact: true }).click(); await page.getByLabel('Word / phrase source', { exact: true }).selectOption('1');
+  await page.getByRole('button', { name: 'Add Translation', exact: true }).click(); await page.getByLabel('Translation source', { exact: true }).selectOption('2');
   await page.getByLabel('Create a collection (optional)').fill('Verified import collection');
   await expect(page.getByRole('button', { name: 'Check duplicates & preview' })).toBeDisabled();
   await page.route('**/api/collections', async route => {
@@ -43,7 +43,7 @@ test('ambiguous and numeric mappings blocked, pending collection and failure, ve
   expect(destination).toMatch(/^[0-9a-f-]{36}$/);
   await page.getByRole('button', { name: 'Check duplicates & preview' }).click();
   await expect(page.getByText(/Destination: Verified import collection/)).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'first', exact: true })).toBeVisible();
+  await expect(page.getByTestId('preview-translation')).toHaveText('first');
   await page.getByRole('button', { name: 'Confirm import', exact: true }).click();
   await expect(page.getByText('2 imported · 0 recovered / already saved · 0 skipped · 0 invalid · 0 failed')).toBeVisible();
   expect(commits[0].collection_id).toBe(destination);
@@ -70,7 +70,7 @@ test('page selection indeterminate, pagination, all matching filters, reset and 
   await expect(page.getByText(/Selected across all filtered results/)).toBeVisible();
   await page.getByPlaceholder('Search words, meanings...').fill('bulk-fixture-2');
   await expect(page.getByText('25 words selected', { exact: true })).toBeHidden();
-  await expect(page.getByText('Selection resets when filters change.')).toBeVisible();
+  await expect(page.getByText('Selection cleared because filters changed.')).toBeVisible();
   await page.getByLabel('Select all words on this page').check();
   await page.getByRole('button', { name: 'Delete selected', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Delete 5 selected words?' })).toBeVisible();

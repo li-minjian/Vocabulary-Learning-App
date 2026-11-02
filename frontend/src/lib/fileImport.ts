@@ -1,6 +1,19 @@
 import { fetchApi } from './api';
 import { processUpload, type UploadProgress } from './uploads';
 
+export interface SourceField { name: string; column: number; derived?: string; from_column?: number; canonical_column?: number }
+export interface FieldSuggestion extends SourceField {
+  role: string; confidence: number; reason: string;
+  evidence: { sampled_nonempty: number; sample_size: number; mean_words: number; scripts: string[]; front_reference: boolean; back_reference: boolean };
+}
+export interface ImportGroup {
+  id: string; name: string; count: number; row_numbers: number[]; fields: SourceField[]; native_cards: number;
+  model_type?: number;
+  warnings?: string[];
+  templates: { name: string; front: {field:string;filters:string[]}[]; back: {field:string;filters:string[]}[]; scripted: boolean; media: boolean }[];
+  analysis: { kind: string; confidence: number; reason: string; fields: FieldSuggestion[]; mapping: Record<string,string>; source_mapping: Record<string,number>; sample_rows: number[]; unresolved: string[] };
+}
+export interface NoteProvenance { note_id?: string; group_id?: string; card_count?: number; deck_names?: string[]; cloze_indices?: number[]; has_media?: boolean }
 export interface ParsedList {
   import_id: string;
   columns: string[];
@@ -10,6 +23,8 @@ export interface ParsedList {
   invalid_rows: { row: number; message: string }[];
   has_header: boolean;
   count: number;
+  groups: ImportGroup[];
+  provenance: NoteProvenance[];
 }
 export interface ImportRow {
   row: number;
@@ -23,6 +38,10 @@ export interface ImportRow {
   source?: string;
   pos?: string;
   ipa?: string;
+  source_kind?: string;
+  conversion_confirmed?: boolean;
+  source_note_id?: string;
+  source_group_id?: string;
 }
 export interface ImportPayload {
   import_id: string;
@@ -44,6 +63,9 @@ export interface RowResult {
   definition?: string;
   examples?: { sentence: string }[];
   language?: string;
+  source_note_id?: string;
+  source_group_id?: string;
+  source_kind?: string;
 }
 export interface ImportPreview { ready: number; skipped: number; invalid: number; duplicates: number; rows: RowResult[] }
 export interface ImportResult { import_id: string; imported: number; resumed: number; skipped: number; invalid: number; failed: number; rows: RowResult[] }

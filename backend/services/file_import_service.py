@@ -60,6 +60,19 @@ def _prepare_rows(rows, default_language):
             if not isinstance(row_number, int) or isinstance(row_number, bool) or row_number < 1 or row_number in seen_rows:
                 raise ImportValidationError('Row numbers must be positive and unique.')
             seen_rows.add(row_number)
+            source_kind = row.get('source_kind', 'vocabulary')
+            if source_kind not in ('vocabulary', 'unresolved', 'translation_cards', 'question_answer', 'grammar_exercise', 'cloze_exercise'):
+                raise ImportValidationError('Unsupported learning material type.')
+            if source_kind not in ('vocabulary', 'unresolved') and row.get('conversion_confirmed') is not True:
+                raise ImportValidationError('Exercise/translation cards are preview-only until vocabulary conversion is explicitly confirmed.')
+            if any(isinstance(row.get(key), str) and re.search(r'\{\{c\d+::', row[key]) for key in ('word', 'translation', 'definition', 'examples', 'source')):
+                raise ImportValidationError('Raw or nested cloze markup is preview-only. Choose an extracted answer or completed text instead.')
+            provenance = {}
+            for key in ('source_note_id', 'source_group_id'):
+                if row.get(key) is not None:
+                    provenance[key] = _string(row[key], key, 128)
+            if 'source_kind' in row:
+                provenance['source_kind'] = source_kind
             word = _string(row.get('word'), 'word', 500)
             if not word:
                 raise ImportValidationError('Word is missing.')
@@ -85,7 +98,7 @@ def _prepare_rows(rows, default_language):
             examples = [{'sentence': _string(ex.get('sentence') if isinstance(ex, dict) else ex, 'example'),
                          'translation': _string(ex.get('translation', '') if isinstance(ex, dict) else '', 'example translation')}
                         for ex in examples]
-            prepared.append({'row': row_number, 'word': word, 'language': language, 'collocations': collocations, **values, 'tags': tags,
+            prepared.append({**provenance, 'row': row_number, 'word': word, 'language': language, 'collocations': collocations, **values, 'tags': tags,
                              'examples': [ex for ex in examples if ex['sentence']]})
         except ImportValidationError as exc:
             errors.append({'row': report_row, 'status': 'invalid', 'message': str(exc)})
@@ -192,6 +205,8 @@ def commit_import(client, user_id, payload):
                 results.append({'row': row['row'], 'word': row['word'], 'id': row['id'], 'status': 'failed',
                                 'word_saved': True, 'message': 'Word saved; examples, collocations or tags are incomplete. Retry with the same import ID to repair them.'})
     results.sort(key=lambda row: row['row'])
+    provenance = {row['row']: {key: row[key] for key in ('source_note_id', 'source_group_id', 'source_kind') if key in row} for row in candidates}
+    results = [{**row, **provenance.get(row['row'], {})} for row in results]
     return {'import_id': plan['import_id'], 'imported': sum(row['status'] == 'imported' for row in results),
             'resumed': sum(row['status'] == 'resumed' for row in results),
             'skipped': len(plan['skipped']), 'invalid': len(plan['invalid']),

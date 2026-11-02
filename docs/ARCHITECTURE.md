@@ -368,3 +368,7 @@ launch commands without editing existing secrets.
 See [Vocabulary management](VOCABULARY-MANAGEMENT.md) for deterministic mapping,
 verified destinations, bounded user-scoped deletion, private backups and recovery.
 `/api/vocabulary-management` owns these operations; no schema or AI changes.
+
+The file importer preserves APKG note types, native template references and cloze
+structure. One deterministic interpreter supplies suggestions; frontend cards and
+commit requests share one projection. See [interpretation and preview](IMPORT-INTERPRETATION.md).

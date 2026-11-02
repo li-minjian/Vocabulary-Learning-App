@@ -61,6 +61,8 @@ class Database:
         self.fail_table, self.corrupt_read = None, False
         for name in ('words', *CHILDREN, 'collections', 'imported_text', 'tags'):
             self.conn.execute(f'CREATE TABLE {name} (id TEXT PRIMARY KEY, user_id TEXT, word_id TEXT, tag_id TEXT, data TEXT)')
+        self.conn.execute("CREATE UNIQUE INDEX tags_name_owner ON tags(user_id, json_extract(data,'$.name'))")
+
     def table(self, name): return Query(self, name)
     def add(self, table, values): self.table(table).upsert(values).execute()
 

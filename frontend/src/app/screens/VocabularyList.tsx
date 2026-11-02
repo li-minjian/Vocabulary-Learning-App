@@ -41,12 +41,11 @@ export function VocabularyList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
-  // Reset pagination to page 1 on filter/search adjustments
-  useEffect(() => {
+  function resetSelectionForFilters() {
     setCurrentPage(1);
     setSelectedIds(new Set());
-    setSelectionNotice('Selection resets when filters change.');
-  }, [searchQuery, selectedLanguage, selectedTag, selectedMastery]);
+    setSelectionNotice(selectedIds.size ? 'Selection cleared because filters changed.' : '');
+  }
 
   // Compile unique lists for select dropdowns
   const availableLanguages = Array.from(new Set(words.map(w => w.language).filter(Boolean))).sort();
@@ -215,12 +214,7 @@ export function VocabularyList() {
           </div>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={() => navigate('/import')}
-            className="h-10 px-4 bg-white border border-[#c2c7cc]/70 text-[#42474b] rounded-xl hover:bg-[#f2f4f5] transition-all font-bold text-[13px] flex items-center gap-2 cursor-pointer shadow-sm active:scale-95 select-none"
-          >
-            <span>Import Text</span>
-          </button>
+          <VocabularyManagement selectedIds={[...selectedIds]} onRefresh={loadWordsList} onClearSelection={() => setSelectedIds(new Set())} />
           <button
             onClick={() => navigate('/vocabulary/new')}
             className="h-10 px-4 bg-[#f2f4f5] border border-[#002434]/40 hover:bg-[#eceeef] hover:border-[#002434]/60 text-[#002434] rounded-xl transition-all font-bold text-[13px] flex items-center gap-2 cursor-pointer shadow-sm active:scale-95 select-none"
@@ -241,7 +235,7 @@ export function VocabularyList() {
               type="text"
               placeholder="Search words, meanings..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { resetSelectionForFilters(); setSearchQuery(e.target.value); }}
               className="w-full h-9 pl-9 pr-4 bg-[#f2f4f5] border border-transparent focus:border-[#002434]/30 rounded-xl text-[13px] text-[#191c1d] font-semibold placeholder:text-[#42474b]/50 focus:outline-none focus:bg-white transition-all duration-200"
             />
           </div>
@@ -252,7 +246,7 @@ export function VocabularyList() {
             <span className="text-[#42474b] font-bold">Language:</span>
             <SelectField
               value={selectedLanguage}
-              onChange={setSelectedLanguage}
+              onChange={value => { resetSelectionForFilters(); setSelectedLanguage(value); }}
               options={languageOptions}
               variant="inline-filter"
             />
@@ -264,7 +258,7 @@ export function VocabularyList() {
             <span className="text-[#42474b] font-bold">Tag:</span>
             <SelectField
               value={selectedTag}
-              onChange={setSelectedTag}
+              onChange={value => { resetSelectionForFilters(); setSelectedTag(value); }}
               options={tagOptions}
               variant="inline-filter"
             />
@@ -276,7 +270,7 @@ export function VocabularyList() {
             <span className="text-[#42474b] font-bold">Mastery:</span>
             <SelectField
               value={selectedMastery}
-              onChange={setSelectedMastery}
+              onChange={value => { resetSelectionForFilters(); setSelectedMastery(value); }}
               options={masteryOptions}
               variant="inline-filter"
             />
@@ -286,6 +280,7 @@ export function VocabularyList() {
           {(selectedLanguage !== 'All' || selectedTag !== 'All' || selectedMastery !== 'All' || searchQuery !== '') && (
             <button
               onClick={() => {
+                resetSelectionForFilters();
                 setSelectedLanguage('All');
                 setSelectedTag('All');
                 setSelectedMastery('All');
@@ -317,11 +312,10 @@ export function VocabularyList() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#c2c7cc]/60 bg-white p-3 text-sm">
-        {!!selectedIds.size && <><strong>{selectedIds.size} words selected</strong><span>{pageSelected} selected on this page · {selectedIds.size === filteredWords.length ? 'Selected across all filtered results' : 'Selection persists across pages'}</span><button className="underline" onClick={() => setSelectedIds(new Set(filteredWords.map(word => String(word.id))))}>Select all {filteredWords.length} matching filters</button><button className="underline" onClick={() => setSelectedIds(new Set())}>Clear selection</button></>}
-        <VocabularyManagement selectedIds={[...selectedIds]} onRefresh={loadWordsList} onClearSelection={() => setSelectedIds(new Set())} />
-        {selectionNotice && <p role="status" className="w-full text-muted-foreground">{selectionNotice}</p>}
-      </div>
+      {!!selectedIds.size && <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#c2c7cc]/60 bg-white p-3 text-sm">
+        <strong>{selectedIds.size} words selected</strong><span>{pageSelected} selected on this page · {selectedIds.size === filteredWords.length ? 'Selected across all filtered results' : 'Selection persists across pages'}</span><button className="underline" onClick={() => setSelectedIds(new Set(filteredWords.map(word => String(word.id))))}>Select all {filteredWords.length} matching filters</button><button className="underline" onClick={() => setSelectedIds(new Set())}>Clear selection</button>
+      </div>}
+      {selectionNotice && <p role="status" className="text-xs text-muted-foreground">{selectionNotice}</p>}
 
       {/* Table Card */}
       <div className="bg-white border border-[#c2c7cc]/60 rounded-3xl shadow-sm overflow-visible relative z-10">
@@ -474,12 +468,7 @@ export function VocabularyList() {
                           >
                             Add Your First Word
                           </button>
-                          <button
-                            onClick={() => navigate('/import')}
-                            className="h-9 px-4 bg-white border border-[#c2c7cc]/70 text-[#42474b] rounded-xl hover:bg-[#f2f4f5] transition-all font-bold text-[12.5px] cursor-pointer active:scale-95 shadow-sm"
-                          >
-                            Import Text
-                          </button>
+
                         </div>
                       </div>
                     ) : (
