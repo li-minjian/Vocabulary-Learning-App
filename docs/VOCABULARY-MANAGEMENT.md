@@ -32,10 +32,13 @@ management events, including other tabs.
 Vocabulary management (three-dot button) → Clear entire Vocabulary Library →
 Back up & inspect my library. The server authenticates the current account using
 the existing Supabase JWT. It never accepts a target user ID or uses a service
-role. It reads actual authenticated PostgREST foreign-key metadata. Unknown
-word-dependent tables block deletion. OpenAPI does not expose ON DELETE actions:
-all four discovered dependent tables are cleaned explicitly and checked, so the
-operation does not rely on the historical migration's CASCADE assumptions. The
+role. Deployment includes a read-only production pg_constraint and trigger audit
+(recorded in docs/qa/vocabulary-fk-audit-2026-11-02.json); repeat that audit when
+changing the database schema. Runtime validates the four relationships through
+the ordinary authenticated Data API. The Supabase OpenAPI root requires admin
+credentials and must not be used by this user-scoped service. All four audited
+dependent tables are cleaned explicitly and checked, so the operation does not
+rely on the historical migration's CASCADE assumptions. The
 historical initial migration must never be run against an existing database.
 
 The backup includes every column returned by `*` in words (including IDs,
@@ -94,3 +97,5 @@ metadata table names and result flags, never vocabulary text/JWTs. Actual produc
 backup and reset are only established by a successful logged-in browser operation
 and the corresponding server verification logs. Isolated tests are not evidence
 that a real account was cleared.
+
+Supabase reference: [database OpenAPI management endpoint](https://supabase.com/docs/reference/api/v1-get-database-openapi). The live Data API metadata-root 401 was verified without adding privileged credentials.

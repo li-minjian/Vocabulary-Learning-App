@@ -86,11 +86,6 @@ class Database:
         if token != 'fixture-access-token': raise ValueError('Invalid fixture credential')
         return SimpleNamespace(user=SimpleNamespace(id=USER))
 
-    @property
-    def postgrest(self):
-        metadata = {'definitions': {name: {'properties': {'word_id': {'description': "<fk table='words' column='id'/>"}}} for name in ('examples','collocations','synonyms','word_tags')}}
-        return SimpleNamespace(session=SimpleNamespace(get=lambda *args, **kwargs: SimpleNamespace(raise_for_status=lambda: None, json=lambda: metadata)))
-
     def table(self, name): return Query(self, name)
 
 

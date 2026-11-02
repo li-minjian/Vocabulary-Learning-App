@@ -1,0 +1,34 @@
+{
+  "project_ref": "tpkqrodztgwkebionqbv",
+  "observed_at": "2026-11-02",
+  "method": "Read-only SELECT through existing authenticated Supabase SQL Editor; pg_constraint joined across all schemas where confrelid=public.words.",
+  "foreign_keys": [
+    {
+      "schema": "public",
+      "table": "collocations",
+      "constraint": "collocations_word_id_fkey",
+      "definition": "FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE"
+    },
+    {
+      "schema": "public",
+      "table": "examples",
+      "constraint": "examples_word_id_fkey",
+      "definition": "FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE"
+    },
+    {
+      "schema": "public",
+      "table": "synonyms",
+      "constraint": "synonyms_word_id_fkey",
+      "definition": "FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE"
+    },
+    {
+      "schema": "public",
+      "table": "word_tags",
+      "constraint": "word_tags_word_id_fkey",
+      "definition": "FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE"
+    }
+  ],
+  "additional_word_dependencies": false,
+  "deletion_method": "Explicit user-scoped child cleanup and verification, followed by exact word IDs. No service-role credential or metadata admin permission in runtime. Re-audit on schema changes.",
+  "custom_triggers_on_words_and_dependents": []
+}

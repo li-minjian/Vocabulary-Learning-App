@@ -20,7 +20,7 @@ class Query:
         self.db, self.name = db, name
         self.filters, self.orders, self.bounds = [], [], None
         self.op, self.values = 'select', None
-    def select(self, *_): return self
+    def select(self, fields='*'): self.fields = fields; return self
     def eq(self, key, value): self.filters.append((key, [value])); return self
     def in_(self, key, values): self.filters.append((key, values)); return self
     def order(self, key): self.orders.append(key); return self
@@ -61,11 +61,6 @@ class Database:
         self.fail_table, self.corrupt_read = None, False
         for name in ('words', *CHILDREN, 'collections', 'imported_text', 'tags'):
             self.conn.execute(f'CREATE TABLE {name} (id TEXT PRIMARY KEY, user_id TEXT, word_id TEXT, tag_id TEXT, data TEXT)')
-    @property
-    def postgrest(self):
-        metadata = {'definitions': {name: {'properties': {'word_id': {'description': "<fk table='words' column='id'/>"}}} for name in ('examples','collocations','synonyms','word_tags')}}
-        return SimpleNamespace(session=SimpleNamespace(get=lambda *args, **kwargs: SimpleNamespace(raise_for_status=lambda: None, json=lambda: metadata)))
-
     def table(self, name): return Query(self, name)
     def add(self, table, values): self.table(table).upsert(values).execute()
 
@@ -164,11 +159,15 @@ class ManagementTests(unittest.TestCase):
         parsed = parse_file(apkg(names=['Word','Word','Notes'], values='first\x1fsecond\x1fnotes'), 'repeat.apkg')
         self.assertEqual(parsed['rows'][0][:2], ['first','second'])
         self.assertNotEqual(parsed['columns'][0], parsed['columns'][1])
-    def test_unknown_live_foreign_dependency_blocks_deletion(self):
+    def test_missing_live_relationship_blocks_deletion_without_admin_access(self):
         from unittest.mock import patch
-        metadata = {'definitions': {'review_events': {'properties': {'word_id': {'description': "<fk table='words' column='id'/>"}}}}}
-        with patch.object(Database, 'postgrest', property(lambda _: SimpleNamespace(session=SimpleNamespace(get=lambda *a, **k: SimpleNamespace(raise_for_status=lambda: None, json=lambda: metadata))))):
-            with self.assertRaisesRegex(ManagementError, 'unverified'): batch_delete(self.db, USER, [self.word], self.store)
+        execute = Query.execute
+        def fail_relationship(query):
+            if 'word_tags(' in getattr(query, 'fields', ''):
+                raise RuntimeError('PostgREST relation unavailable')
+            return execute(query)
+        with patch.object(Query, 'execute', fail_relationship):
+            with self.assertRaisesRegex(ManagementError, 'relationships'): batch_delete(self.db, USER, [self.word], self.store)
         self.assertEqual(len(read_rows(self.db, USER, 'words')), 1)
 
     def test_authenticated_routes_and_single_word_ownership(self):
