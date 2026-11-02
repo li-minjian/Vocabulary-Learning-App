@@ -292,6 +292,30 @@ the user to split or simplify; parser limits are independent of the upload limit
 
 ## Cost and troubleshooting
 
+Upload 503 signing incident (2026-11-02): actual authenticated Cloud Run requests
+reached IAM `signBlob` and failed with upstream403 `ACCESS_TOKEN_SCOPE_INSUFFICIENT`.
+The Storage SDK's default metadata credentials requested only Storage scopes.
+`GCSUploadStore` now requests ADC with explicit `cloud-platform` scope before
+constructing the client. Existing bucket access and self-signBlob IAM remain
+unchanged; no additional role, key or resource is required. A native SDK/metadata
+credential regression reproduces the old failure and passes with the fix.
+
+Fix revision: `vocabulary-learning-app-upload-fix-b34e99c`, image
+`sha256:f25143b4131b8319dd844c52d224132a2bf9f9472a2592a63eea01dfcecf4d02`.
+21 upload tests and two targeted Linux-image tests pass. Prior environment,
+runtime identity, bucket IAM and service-account IAM were compared unchanged.
+Immediate rollback remains `vocabulary-learning-app-practice-5982771`.
+The actual authenticated request outcome is recorded in
+[PR #8](https://github.com/li-minjian/Vocabulary-Learning-App/pull/8).
+
+Unexpected upload failures now log `upload_failure` with operation, error ID,
+exception type/module, allowlisted reason codes, upstream status and structural
+stack locations. Raw exception text, request data/headers, credentials, signed
+URLs and local variables are never logged. The generic response includes an
+error ID for correlation. Verify fixes using an authenticated real Cloud Run
+`POST /api/uploads` returning201, not a local GCS-only smoke test. If no dedicated
+test account exists, retain the verification gap until the user's logged-in retry.
+
 The immutable 613 MiB index increases image size, not per-start external downloads.
 Compressed distribution is about 75.4 MiB. SQLite reads indexed pages on demand.
 One temporary bucket adds small storage/request charges, bounded per file by

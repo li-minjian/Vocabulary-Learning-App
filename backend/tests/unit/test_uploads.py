@@ -268,6 +268,34 @@ class UploadTests(unittest.TestCase):
         client.get_bucket.return_value.iam_configuration.public_access_prevention = 'inherited'
         with self.assertRaises(UploadError): GCSUploadStore('bucket', 'signer', client)
 
+    def test_metadata_credentials_can_sign_without_storage_only_token(self):
+        import base64
+        from google.auth.compute_engine import Credentials
+        from google.auth.exceptions import TransportError
+        from google.cloud.storage import Client
+        cloud_scope = 'https://www.googleapis.com/auth/cloud-platform'
+        bucket = MagicMock(name='private-bucket')
+        bucket.name = 'private-bucket'
+        bucket.iam_configuration.public_access_prevention = 'enforced'
+        bucket.iam_configuration.uniform_bucket_level_access_enabled = True
+        def adc(scopes=None, **kwargs):
+            return Credentials(scopes=scopes, universe_domain='googleapis.com'), 'fixture-project'
+        def refresh(credentials, request):
+            scopes = credentials.scopes or credentials.default_scopes or ()
+            credentials.token = 'cloud-platform-fixture' if cloud_scope in scopes else 'storage-only-fixture'
+        def sign(message, access_token, email):
+            if access_token != 'cloud-platform-fixture':
+                raise TransportError('{"error":{"code":403,"details":[{"reason":"ACCESS_TOKEN_SCOPE_INSUFFICIENT"}]}}')
+            return base64.b64encode(b'fixture-signature').decode()
+        # Exercise the native Storage SDK and metadata credential class. Only
+        # network boundaries are stubbed; SDK scoping/signing behavior is real.
+        with patch('google.auth.default', side_effect=adc), patch.object(Client, 'get_bucket', return_value=bucket), \
+             patch.object(Credentials, 'refresh', refresh), patch('google.cloud.storage.client._sign_message', side_effect=sign):
+            service = UploadService(GCSUploadStore('private-bucket', 'runtime@example.test'))
+            result = service.initialize(USER, {'filename':'article.txt','size':20,'workflow':'article'})
+            self.assertEqual(result['transport'], 'gcs-post')
+            self.assertTrue(result['fields']['x-goog-signature'])
+
     def test_local_fallback_is_forbidden_on_cloud_run(self):
         with patch.dict('os.environ', {'K_SERVICE': 'fixture'}), self.assertRaises(UploadError): LocalUploadStore(self.tmp.name)
 
@@ -285,6 +313,25 @@ class UploadAPITests(unittest.TestCase):
         self.client = app.test_client()
 
     def tearDown(self): self.tmp.cleanup()
+
+    def test_unexpected_errors_log_safe_diagnostics_without_signed_data(self):
+        from google.auth.exceptions import TransportError
+        error = TransportError('Error calling IAM API: {"error":{"code":403,"status":"PERMISSION_DENIED",'
+            '"details":[{"reason":"ACCESS_TOKEN_SCOPE_INSUFFICIENT"}]}} '
+            'https://storage.example.test/private?X-Goog-Signature=PRIVATE_SENTINEL access_token=TOKEN_SENTINEL')
+        for method, path in [('post', '/api/uploads'), ('post', '/api/uploads/'+'a'*32+'.txt/process'),
+                             ('delete', '/api/uploads/'+'a'*32+'.txt')]:
+            with self.subTest(path=path), patch('routes.uploads.get_upload_service', side_effect=error), \
+                 self.assertLogs(self.client.application.logger, level='ERROR') as captured:
+                result = getattr(self.client, method)(path, json={'filename':'PRIVATE_FILENAME'}, headers={'X-Test-User':USER})
+            self.assertEqual(result.status_code, 503)
+            diagnostic = json.loads(captured.records[0].getMessage())
+            self.assertEqual(diagnostic['error_id'], result.json['error_id'])
+            self.assertEqual(diagnostic['exception_type'], 'TransportError')
+            self.assertEqual(diagnostic['upstream_status'], 403)
+            self.assertIn('ACCESS_TOKEN_SCOPE_INSUFFICIENT', diagnostic['reasons'])
+            for secret in ['PRIVATE_SENTINEL', 'TOKEN_SENTINEL', 'PRIVATE_FILENAME', 'storage.example.test']:
+                self.assertNotIn(secret, captured.output[0] + result.text)
 
     def test_auth_initialize_content_finalize_and_failed_finalize(self):
         with patch('routes.uploads.get_upload_service', return_value=self.service):

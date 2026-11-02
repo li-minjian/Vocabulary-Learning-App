@@ -122,7 +122,13 @@ class GCSUploadStore:
         if not bucket or not signer_email:
             raise UploadError('Secure cloud uploads are not configured. Contact the operator.', 503)
         from google.cloud import storage
-        self.client = client or storage.Client()
+        if client is None:
+            import google.auth
+            # Storage-only ADC scopes cannot call IAM Credentials signBlob on
+            # Cloud Run. IAM roles still restrict this identity's actual access.
+            credentials, project = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
+            client = storage.Client(project=project, credentials=credentials)
+        self.client = client
         self.bucket = self.client.get_bucket(bucket)
         policy = self.bucket.iam_configuration
         if policy.public_access_prevention != 'enforced' or not policy.uniform_bucket_level_access_enabled:
@@ -130,7 +136,6 @@ class GCSUploadStore:
         self.signer_email = signer_email
 
     def authorize(self, key, claims):
-        import google.auth
         from google.auth.transport.requests import Request
         from datetime import timedelta
         credentials = self.client._credentials
