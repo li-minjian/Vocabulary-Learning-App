@@ -292,6 +292,22 @@ the user to split or simplify; parser limits are independent of the upload limit
 
 ## Cost and troubleshooting
 
+Upload 503 signing incident (2026-11-02): actual authenticated Cloud Run requests
+reached IAM `signBlob` and failed with upstream403 `ACCESS_TOKEN_SCOPE_INSUFFICIENT`.
+The Storage SDK's default metadata credentials requested only Storage scopes.
+`GCSUploadStore` now requests ADC with explicit `cloud-platform` scope before
+constructing the client. Existing bucket access and self-signBlob IAM remain
+unchanged; no additional role, key or resource is required. A native SDK/metadata
+credential regression reproduces the old failure and passes with the fix.
+
+Unexpected upload failures now log `upload_failure` with operation, error ID,
+exception type/module, allowlisted reason codes, upstream status and structural
+stack locations. Raw exception text, request data/headers, credentials, signed
+URLs and local variables are never logged. The generic response includes an
+error ID for correlation. Verify fixes using an authenticated real Cloud Run
+`POST /api/uploads` returning201, not a local GCS-only smoke test. If no dedicated
+test account exists, retain the verification gap until the user's logged-in retry.
+
 The immutable 613 MiB index increases image size, not per-start external downloads.
 Compressed distribution is about 75.4 MiB. SQLite reads indexed pages on demand.
 One temporary bucket adds small storage/request charges, bounded per file by
