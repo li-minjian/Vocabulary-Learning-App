@@ -1,0 +1,7 @@
+{
+  "title": "VOCA build-token-role",
+  "stage": "GA",
+  "includedPermissions": [
+    "iam.serviceAccounts.getAccessToken"
+  ]
+}

@@ -195,3 +195,56 @@ The release artifact is retained locally at
 `backend/data/dictionary/voca-dictionary-2026-11-01.1.sqlite3.zst`, ignored by Git;
 its compressed hash matches the tracked lock. A final documentation checkpoint
 records these delivery links without embedding its own commit hash.
+
+## 2026-11-02 — Authorized production release and worker recovery
+
+Deployment **executed**, acceptance **PARTIAL** for the user-accepted login/E2E
+gap only. PR #6 merged as `c65052d193edd0da84a39520336cf120f67ded46` after backend
+staging; Vercel READY deployment `dpl_BU7qLcRVdu42wo7VxX55wkaoHMMV` serves that
+exact SHA at https://voca118.vercel.app. Public served assets include the new
+50 MiB/GCS client and the correct existing Cloud Run backend URL. No second Vercel
+project/domain was created.
+
+- Private GCS artifact/upload buckets, exact-origin CORS, one-day cleanup,
+  three dedicated identities and narrowly scoped roles were created. Existing
+  registry reused, no service-account keys, no new Owner/Editor grants. Required
+  APIs were already enabled. Temporary runtime test-token permission removed.
+- Existing snapshot `2026-11-01.1` published create-only; compressed SHA unchanged,
+  generation `1793627816400999`, 79,029,124 bytes. Restricted builder retrieved
+  it and the image build validated database SHA/integrity/counts/indexes.
+- Source `7f63aa8fd8c804c42a1d980041e52a89087040d0` became Cloud Run revision
+  `vocabulary-learning-app-voca-7f63aa8`, promoted from zero to 100% traffic.
+  Image digest `sha256:5ce921d2add7094c72c6309211cc14fa9b80b5e00d7648c2f54c799d7e2fe66f`.
+  Runtime: 1 CPU, 1 GiB, concurrency8, min0/max2, timeout300; prior Supabase/auth
+  environment values preserved. Public readiness200, protected endpoints401,
+  Supabase settings200, CORS exact origin, no observed ERROR logs. Memory samples
+  after health traffic were about 12–13%; no large-file production peak is claimed.
+- Real private GCS accepted exactly 50 MiB CSV/PDF/APKG and rejected +1 byte.
+  Runtime identity verified signing, size/type/ownership/generation/expiry,
+  duplicate receipt, cancel and cleanup. Parsing executed locally using production
+  service code against actual GCS, not via an authenticated Cloud Run request.
+  A real metadata PATCH merge retained `processing`; fixed with explicit null,
+  then confirmed immediate next claim and exact test-object cleanup. No paid AI.
+- Targeted deployment-fix tests: dictionary artifact4 and uploads17 pass; previous
+  58 Python, 10 fixture Chrome, 7 frontend/TypeScript/build evidence remains scoped
+  to its execution checkpoint. Final published image passes offline English/German
+  hits, miss, UID10001 and absence of mounted build credentials.
+- Production Chrome checks: public login200, six private routes redirect to login,
+  no runtime errors or automatic AI requests, no mobile horizontal overflow.
+  The user declined a dedicated test account and explicitly retained the gap:
+  logged-in dashboard/CRUD/SRS, authenticated dictionary and Cloud Run processing
+  remain unverified. No personal JWT, auth bypass or real-user data mutation.
+- P1 **COMPLETE**: PowerShell7.6.9 ARM64 installed under `~/.local/share/powershell`
+  and linked from `~/.local/bin/pwsh`, official archive SHA verified, no sudo/global
+  dotnet. Real Flash Medium wrapper task returned WORKER_SUCCEEDED/PASS; a fresh
+  process Flash Low task succeeded without overrides. Codex reviewed/accepted the
+  actual results. Offline platform13 and process/scope16 checks passed; pure-read
+  success does not establish untested controlled-write behavior.
+
+Sanitized [production evidence](qa/production-release-2026-11-02.json),
+[worker execution](qa/antigravity-recovery-2026-11-02.json) and the
+[runbook](PRODUCTION-UPGRADE.md) record exact resources, IAM, checks and rollback.
+Prior observed Cloud Run `00030-c95` and Vercel `dpl_Hd7KTfknpsGz3FpjWXafwfeNx5ys`
+were retained; no rollback was necessary. The original dirty mobile checkout and
+earlier unrelated QA/Figma work remain untouched. Documentation is checkpointed
+separately from the runtime release to avoid a documentation-only production rebuild.

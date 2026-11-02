@@ -25,9 +25,15 @@ For production image installation, use the pinned artifact process in
 command below. Release `2026-11-01.1` packages the existing snapshot without an
 upstream refresh. `backend/dictionary.lock.json` records compressed/database hashes,
 lengths, counts and attribution. Build-time installation verifies integrity and
-fails closed; no runtime downloads occur. The artifact is prepared locally but
-**not published to GCS** pending infrastructure approval. Public
+fails closed; no runtime downloads occur. The artifact was prepared locally and
+published privately to `gs://voca-497321-dictionary-171081604096/dictionary/2026-11-01.1/`;
+generation `1793627816400999`, size/hash verified by the production build. Public
 `/api/health/dictionary` reports readiness/version without internal paths.
+
+Production revision `vocabulary-learning-app-voca-7f63aa8` reports ready200 with
+both languages. The actual published image passed offline English/German hits and
+normal misses. Authenticated production dictionary API calls remain unverified
+without a dedicated test account; no authentication bypass was introduced.
 
 The source index builder uses Python standard library only; run from project root:
 

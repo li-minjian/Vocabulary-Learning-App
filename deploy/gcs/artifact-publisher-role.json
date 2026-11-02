@@ -1,0 +1,7 @@
+{
+  "title": "VOCA artifact-publisher-role",
+  "stage": "GA",
+  "includedPermissions": [
+    "storage.objects.create"
+  ]
+}
