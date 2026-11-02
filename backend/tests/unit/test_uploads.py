@@ -286,6 +286,25 @@ class UploadAPITests(unittest.TestCase):
 
     def tearDown(self): self.tmp.cleanup()
 
+    def test_unexpected_errors_log_safe_diagnostics_without_signed_data(self):
+        from google.auth.exceptions import TransportError
+        error = TransportError('Error calling IAM API: {"error":{"code":403,"status":"PERMISSION_DENIED",'
+            '"details":[{"reason":"ACCESS_TOKEN_SCOPE_INSUFFICIENT"}]}} '
+            'https://storage.example.test/private?X-Goog-Signature=PRIVATE_SENTINEL access_token=TOKEN_SENTINEL')
+        for method, path in [('post', '/api/uploads'), ('post', '/api/uploads/'+'a'*32+'.txt/process'),
+                             ('delete', '/api/uploads/'+'a'*32+'.txt')]:
+            with self.subTest(path=path), patch('routes.uploads.get_upload_service', side_effect=error), \
+                 self.assertLogs(self.client.application.logger, level='ERROR') as captured:
+                result = getattr(self.client, method)(path, json={'filename':'PRIVATE_FILENAME'}, headers={'X-Test-User':USER})
+            self.assertEqual(result.status_code, 503)
+            diagnostic = json.loads(captured.records[0].getMessage())
+            self.assertEqual(diagnostic['error_id'], result.json['error_id'])
+            self.assertEqual(diagnostic['exception_type'], 'TransportError')
+            self.assertEqual(diagnostic['upstream_status'], 403)
+            self.assertIn('ACCESS_TOKEN_SCOPE_INSUFFICIENT', diagnostic['reasons'])
+            for secret in ['PRIVATE_SENTINEL', 'TOKEN_SENTINEL', 'PRIVATE_FILENAME', 'storage.example.test']:
+                self.assertNotIn(secret, captured.output[0] + result.text)
+
     def test_auth_initialize_content_finalize_and_failed_finalize(self):
         with patch('routes.uploads.get_upload_service', return_value=self.service):
             self.assertEqual(self.client.post('/api/uploads', json={}).status_code, 401)
