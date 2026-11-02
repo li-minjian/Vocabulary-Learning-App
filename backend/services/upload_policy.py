@@ -27,5 +27,5 @@ def validate_upload(data):
         raise UploadError('Unsupported format for this import workflow.')
     mime = {'csv': 'text/csv', 'tsv': 'text/tab-separated-values', 'txt': 'text/plain',
             'apkg': 'application/octet-stream', 'pdf': 'application/pdf', 'png': 'image/png',
-            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg'}[extension]
+            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'md': 'text/markdown', 'markdown': 'text/markdown'}[extension]
     return {'filename': filename, 'size': size, 'workflow': workflow, 'extension': extension, 'mime': mime}

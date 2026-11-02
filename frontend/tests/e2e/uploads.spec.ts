@@ -107,3 +107,82 @@ test('GCS transport sends bytes directly without Supabase JWT and retries proces
   expect(uploads).toBe(1);
   expect(processes).toBe(2);
 });
+
+for (const extension of ['txt', 'md', 'pdf']) {
+  test(`practice ${extension} upload previews editable text, preserves language and saves without AI`, async ({ page }) => {
+    await signIn(page);
+    await page.goto('/practice');
+    let saves = 0, ai = 0;
+    page.on('request', request => {
+      if (request.url().endsWith('/api/articles') && request.method() === 'POST') saves++;
+      if (request.url().includes('/api/ai/') || request.url().includes('/api/import/analyze') ||
+          request.url().endsWith('/process') && request.postDataJSON()?.method === 'ai') ai++;
+    });
+    await expect(page.getByRole('button', { name: 'Upload file', exact: true })).toBeVisible();
+    await page.getByLabel('Language', { exact: true }).selectOption('German');
+    const content = extension === 'pdf' ? 'Hello local practice PDF.' : '# Häuser\nGrüße 世界.';
+    await page.getByLabel('Article file', { exact: true }).setInputFiles({ name: `Practice preview.${extension}`, mimeType: extension === 'pdf' ? 'application/pdf' : 'text/plain', buffer: extension === 'pdf' ? pdf(content) : Buffer.from('\ufeff'+content) });
+    await expect(page.getByLabel('Article text', { exact: true })).toHaveValue(content);
+    await expect(page.getByLabel('Title', { exact: true })).toHaveValue('Practice preview');
+    expect(saves).toBe(0);
+    await page.getByLabel('Title', { exact: true }).fill(`Reviewed ${extension} article`);
+    await page.getByLabel('Article text', { exact: true }).fill(content+'\nEdited before saving.');
+    await expect(page.getByLabel('Language', { exact: true })).toHaveValue('German');
+    await page.getByRole('button', { name: 'Save & start practice', exact: true }).click();
+    await expect(page).toHaveURL(/\/practice\/[^/]+/);
+    await expect(page.getByRole('heading', { name: `Reviewed ${extension} article`, exact: true })).toBeVisible();
+    expect(saves).toBe(1); expect(ai).toBe(0);
+    await page.getByRole('link', { name: 'Article library', exact: true }).click();
+    await expect(page.getByRole('link', { name: new RegExp(`Reviewed ${extension} article`) })).toBeVisible();
+  });
+}
+
+test('practice scan keeps the draft and requires explicit AI consent', async ({ page }) => {
+  await signIn(page); await page.goto('/practice');
+  await page.getByLabel('Title', { exact: true }).fill('My edited title');
+  await page.getByLabel('Article text', { exact: true }).fill('Keep my current draft.');
+  let ai = 0;
+  await page.route('**/api/uploads/*/process', async route => {
+    const body = route.request().postDataJSON();
+    if (body.method !== 'ai') return route.continue();
+    ai++; expect(body.consent_ai).toBe(true);
+    await route.fulfill({ json: { text: 'Explicit synthetic OCR preview.', needs_ocr: false, method: 'ai' } });
+  });
+  await page.getByLabel('Article file', { exact: true }).setInputFiles({ name: 'scan.pdf', mimeType: 'application/pdf', buffer: pdf('') });
+  await expect(page.getByText('No usable PDF text layer was found. OCR/AI requires your explicit consent.')).toBeVisible();
+  await expect(page.getByLabel('Article text', { exact: true })).toHaveValue('Keep my current draft.');
+  await expect(page.getByLabel('Title', { exact: true })).toHaveValue('My edited title');
+  expect(ai).toBe(0);
+  await page.getByRole('button', { name: 'Ask AI to extract this PDF', exact: true }).click();
+  await expect(page.getByLabel('Article text', { exact: true })).toHaveValue('Explicit synthetic OCR preview.');
+  expect(ai).toBe(1);
+});
+
+test('practice upload errors preserve text and show file/content limits', async ({ page }, testInfo) => {
+  await signIn(page); await page.setViewportSize({ width: 390, height: 844 }); await page.goto('/practice');
+  await page.getByLabel('Article text', { exact: true }).fill('Retain this pasted article.');
+  const file = page.getByLabel('Article file', { exact: true });
+  const over = testInfo.outputPath('oversized.txt'); await writeFile(over, 'x'); await truncate(over, 52428801);
+  await file.setInputFiles(over);
+  await expect(page.getByRole('alert')).toContainText('File exceeds 50 MiB');
+  await file.setInputFiles({ name: 'long.md', mimeType: 'text/markdown', buffer: Buffer.alloc(100001, 97) });
+  await expect(page.getByRole('alert')).toContainText('100,000 characters');
+  await expect(page.getByLabel('Article text', { exact: true })).toHaveValue('Retain this pasted article.');
+  await expect(page.getByRole('button', { name: 'Retry extraction', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});
+
+test('practice upload progress can be cancelled without losing the editor', async ({ page }) => {
+  await signIn(page); await page.goto('/practice');
+  await page.getByLabel('Article text', { exact: true }).fill('Retain this draft on cancel.');
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/uploads/*/process', async route => { await held; await route.continue().catch(() => {}); });
+  await page.getByLabel('Article file', { exact: true }).setInputFiles({ name: 'cancel.txt', mimeType: 'text/plain', buffer: Buffer.from('Pending article preview.') });
+  await expect(page.getByRole('progressbar', { name: 'Article file upload progress' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save & start practice', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Cancel upload', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Upload cancelled');
+  await expect(page.getByLabel('Article text', { exact: true })).toHaveValue('Retain this draft on cancel.');
+  release();
+});

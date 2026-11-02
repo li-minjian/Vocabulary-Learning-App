@@ -145,6 +145,33 @@ class UploadTests(unittest.TestCase):
             with self.assertRaises(UploadError): self.service.process(USER, upload, {'workflow': 'article', 'method': 'ai'})
             ai.assert_not_called(); model.assert_not_called()
 
+    def test_article_txt_markdown_preview_unicode_limits_and_zero_ai(self):
+        with patch('google.generativeai.upload_file') as ai:
+            for extension in ('txt', 'md', 'markdown'):
+                with self.subTest(extension=extension):
+                    upload, key = self.receive('\ufeff# Häuser\r\nGrüße 世界.'.encode(), 'article.'+extension, 'article')
+                    result = self.service.process(USER, upload, {'workflow': 'article'})
+                    self.assertEqual(result['text'], '# Häuser\nGrüße 世界.')
+                    self.assertFalse(result['needs_ocr']); self.assertFalse(result['ai_allowed'])
+                    self.assertFalse(self.store.path(key).exists())
+                    self.assertEqual(self.service.process(USER, upload, {'workflow': 'article'}), result)
+            ai.assert_not_called()
+        upload, _ = self.receive(b'a'*100000, 'limit.txt', 'article')
+        self.assertEqual(len(self.service.process(USER, upload, {'workflow':'article'})['text']), 100000)
+        upload, _ = self.receive(b'a'*100001, 'over.md', 'article')
+        with self.assertRaisesRegex(UploadError, '100,000'):
+            self.service.process(USER, upload, {'workflow':'article'})
+
+    def test_article_text_rejects_binary_encoding_empty_and_wrong_owner(self):
+        for content in (b'\xff\xfe', b'hello\x00world', b'   ', b'%PDF-1.4\nspoof'):
+            with self.subTest(content=content):
+                upload, _ = self.receive(content, 'invalid.md', 'article')
+                with self.assertRaises(UploadError): self.service.process(USER, upload, {'workflow':'article'})
+        upload, _ = self.receive(b'Private article text.', 'owner.markdown', 'article')
+        with self.assertRaises(UploadError) as error:
+            self.service.process(OTHER, upload, {'workflow':'article'})
+        self.assertEqual(error.exception.status, 404)
+
     def test_apkg_with_media_is_parsed_without_media_execution(self):
         upload, _ = self.receive(apkg(), 'deck.apkg')
         result = self.service.process(USER, upload, {'workflow': 'file'})

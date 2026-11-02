@@ -261,6 +261,16 @@ remain selected-panel state; no persistent AI cache was introduced.
 
 ## Typing, rendering and learning progress
 
+`/practice` accepts PDF, UTF-8 TXT and Markdown (`.md`/`.markdown`) beside the
+existing paste editor. It uses the same authenticated article upload workflow,
+50 MiB policy, object ownership and PDF extraction. TXT/Markdown are read locally
+with a 100,000-character cap; Markdown source stays editable plain text. Upload
+progress, cancel/retry and errors retain the draft until extraction succeeds.
+Filename title suggestions preserve manual edits and the selected language.
+Preview is editable before the existing `saveArticle` call (`source_type=text_file`)
+creates the article and navigates to its practice session. Scan PDFs require a
+separate explicit AI click; neither text extraction nor saving requests AI.
+
 **As-Is — Implemented:** `lib/typingEngine.ts` owns pure input/metrics/restore logic;
 `ArticleTypingSurface.tsx` renders Unicode character/word spans, feedback, caret,
 paragraphs and scroll with a small invisible native input capture for keyboard/IME.

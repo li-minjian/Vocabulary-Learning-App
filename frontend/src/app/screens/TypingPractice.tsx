@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { BookOpen, Loader2, Pause, Play, Plus, RotateCcw } from 'lucide-react';
+import { BookOpen, Loader2, Pause, Play, Plus, RotateCcw, Upload } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ArticleTypingSurface } from '../components/ArticleTypingSurface';
 import { DictionaryPanel } from '../components/DictionaryPanel';
 import { fetchArticle, fetchArticles, saveArticle, type Article } from '../../lib/articles';
 import { findDictionaryPhrases, type DictionaryPhraseSpan } from '../../lib/dictionary';
+import { cancelUpload, processUpload, validateFile, type DocumentExtraction, type UploadProgress } from '../../lib/uploads';
 import { applyTypingInput, articleSpans, emptyTypingState, normalizeArticle, restoreTypingState, serializeTypingState, typingMetrics, type TypingState } from '../../lib/typingEngine';
 
 const controlClass = 'rounded-xl border border-border bg-white px-4 py-2.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed';
@@ -174,6 +175,47 @@ export function TypingPractice() {
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
   const [reload, setReload] = useState(0);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadResult, setUploadResult] = useState<DocumentExtraction | null>(null);
+  const [uploadError, setUploadError] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [sourceType, setSourceType] = useState<'paste' | 'text_file'>('paste');
+  const fileInput = useRef<HTMLInputElement>(null);
+  const uploadController = useRef<AbortController | null>(null);
+  const suggestedTitle = useRef('');
+  useEffect(() => () => uploadController.current?.abort(), []);
+
+  const extractFile = async (file: File, method: 'local' | 'ai' = 'local') => {
+    setUploadError('');
+    try {
+      if (!/\.(pdf|txt|md|markdown)$/i.test(file.name)) throw new Error('Choose a PDF, TXT or Markdown file.');
+      validateFile(file, 'article');
+    } catch (reason) {
+      setUploadFile(null); setUploadResult(null);
+      setUploadError(reason instanceof Error ? reason.message : 'Invalid article file.');
+      return;
+    }
+    setUploadFile(file);
+    if (file !== uploadFile) {
+      setUploadResult(null);
+      const previousSuggestion = suggestedTitle.current;
+      const nextTitle = file.name.replace(/\.[^.]+$/, '').slice(0, 250);
+      setTitle(previous => !previous.trim() || previous === previousSuggestion ? nextTitle : previous);
+      suggestedTitle.current = nextTitle;
+    }
+    setExtracting(true);
+    uploadController.current = new AbortController();
+    try {
+      const result = await processUpload<DocumentExtraction>(file, 'article', {
+        method, signal: uploadController.current.signal, onProgress: setUploadProgress,
+      });
+      setUploadResult(result);
+      if (result.text) { setText(result.text); setSourceType('text_file'); }
+    } catch (reason) {
+      setUploadError(reason instanceof DOMException && reason.name === 'AbortError' ? 'Upload cancelled. Your editor text is unchanged.' : reason instanceof Error ? reason.message : 'Could not extract this article.');
+    } finally { setExtracting(false); setUploadProgress(null); }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -185,10 +227,10 @@ export function TypingPractice() {
 
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!text.trim() || saving) return;
+    if (!text.trim() || saving || extracting) return;
     setSaving(true); setError('');
     try {
-      const value = await saveArticle({ title: title.trim() || 'Untitled article', raw_text: text.trim(), language, source_type: 'paste' });
+      const value = await saveArticle({ title: title.trim() || 'Untitled article', raw_text: text.trim(), language, source_type: sourceType });
       navigate(`/practice/${value.id}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not save article. Your text is still available below.');
@@ -202,15 +244,25 @@ export function TypingPractice() {
         <div className="border-b border-border pb-5"><h1 className="text-[28px] font-bold tracking-tight text-primary">Reading & Typing</h1><p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">Practice with your own articles, explore words in context, and save what you want to remember. Typing and local dictionary lookup do not request AI.</p></div>
         <div className="grid items-start gap-6 lg:grid-cols-[1.2fr_1fr]">
           <form onSubmit={create} className="space-y-4 rounded-2xl border border-border bg-white p-5 sm:p-6">
-            <h2 className="text-lg font-bold text-primary"><Plus className="mr-2 inline size-5" />Add an article</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-bold text-primary"><Plus className="mr-2 inline size-5" />Add an article</h2>
+              <button type="button" className={controlClass} disabled={extracting || saving} onClick={() => fileInput.current?.click()}><Upload className="mr-2 inline size-4" />Upload file</button>
+              <input ref={fileInput} type="file" aria-label="Article file" accept=".pdf,.txt,.md,.markdown" className="hidden" disabled={extracting || saving} onChange={event => { const file = event.target.files?.[0]; if (file) void extractFile(file); event.target.value = ''; }} />
+            </div>
+            <p className="text-xs leading-relaxed text-muted-foreground">Upload PDF, TXT or Markdown, or paste below. Up to 50 MiB; article text up to 100,000 characters. TXT/Markdown must be UTF-8; PDFs support up to 200 pages. Successful extraction replaces the editor text for review before saving.</p>
+            {uploadProgress && <div role="status" className="space-y-2 text-sm"><p>{uploadProgress.stage === 'processing' ? 'Extracting article text…' : `${uploadProgress.stage === 'authorizing' ? 'Authorizing upload' : 'Uploading file'}… ${uploadProgress.percent}%`}</p><progress aria-label="Article file upload progress" max={100} value={uploadProgress.percent} className="w-full" /><button type="button" className="underline" onClick={() => { uploadController.current?.abort(); if (uploadFile) void cancelUpload(uploadFile).catch(() => {}); }}>Cancel upload</button></div>}
+            {uploadError && <div role="alert" className="text-sm text-rose-800">{uploadError}{uploadFile && <button type="button" className="ml-3 underline" disabled={extracting} onClick={() => extractFile(uploadFile)}>Retry extraction</button>}</div>}
+            {uploadResult?.warnings?.map((warning, index) => <p key={index} className="text-xs text-muted-foreground">{warning}</p>)}
+            {uploadResult?.text && <p role="status" className="text-sm text-teal-800">Text extracted. Preview and edit below, then save to start practice.</p>}
+            {uploadResult?.needs_ocr && <div className="space-y-2 text-sm"><p>No usable PDF text layer was found. OCR/AI requires your explicit consent.</p>{uploadResult.ai_allowed && uploadFile ? <><button type="button" className={controlClass} disabled={extracting} onClick={() => extractFile(uploadFile, 'ai')}>Ask AI to extract this PDF</button><p className="text-xs text-muted-foreground">Only this action sends the PDF to the AI provider. AI supports up to 20 MiB and 100 pages.</p></> : <p>OCR locally or split the PDF first. AI supports up to 20 MiB and 100 pages.</p>}</div>}
             <label className="block text-sm font-semibold text-slate-700">Title<input value={title} maxLength={250} onChange={event => setTitle(event.target.value)} placeholder="What are you reading?" className="mt-2 w-full rounded-xl border border-border px-3 py-2.5 text-sm font-normal" /></label>
-            <label className="block text-sm font-semibold text-slate-700">Language<select value={language} onChange={event => setLanguage(event.target.value)} className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2.5 text-sm font-normal"><option>English</option><option>German</option></select></label>
-            <label className="block text-sm font-semibold text-slate-700">Article text<textarea required value={text} maxLength={100000} onChange={event => setText(event.target.value)} rows={12} placeholder="Paste an article or a passage here…" className="mt-2 w-full resize-y rounded-xl border border-border p-3 text-sm font-normal leading-relaxed" /></label>
-            <p className="text-xs text-muted-foreground">{text.trim().split(/\s+/u).filter(Boolean).length} words · Stored in your article library · No AI</p>
-            <button type="submit" disabled={saving || !text.trim()} className={`${controlClass} w-full !border-primary !bg-primary !text-white`}>{saving ? 'Saving article…' : 'Save & start practice'}</button>
+            <label className="block text-sm font-semibold text-slate-700">Language<select aria-label="Language" value={language} onChange={event => setLanguage(event.target.value)} className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2.5 text-sm font-normal"><option>English</option><option>German</option></select></label>
+            <label className="block text-sm font-semibold text-slate-700">Article text<textarea aria-label="Article text" required value={text} maxLength={100000} disabled={extracting} onChange={event => setText(event.target.value)} rows={12} placeholder="Paste an article or a passage here…" className="mt-2 w-full resize-y rounded-xl border border-border p-3 text-sm font-normal leading-relaxed" /></label>
+            <p className="text-xs text-muted-foreground">{text.trim().split(/\s+/u).filter(Boolean).length} words · {text.length.toLocaleString()}/100,000 characters · Saved to your library only after confirmation</p>
+            <button type="submit" disabled={saving || extracting || !text.trim()} className={`${controlClass} w-full !border-primary !bg-primary !text-white`}>{saving ? 'Saving article…' : 'Save & start practice'}</button>
           </form>
           <section className="space-y-4"><div className="flex items-center justify-between"><h2 className="text-lg font-bold text-primary">Your article library</h2><span className="text-xs text-muted-foreground">{articles.length} articles</span></div>
-            {!articles.length ? <div className="rounded-2xl border border-dashed border-border bg-white p-8 text-center"><BookOpen className="mx-auto size-7 text-slate-400" /><p className="mt-4 text-sm font-semibold text-primary">Your next reading session starts here</p><p className="mt-2 text-sm text-muted-foreground">Paste an article to save it and begin typing. Articles saved from Article Import will also appear here.</p></div> : <div className="space-y-3">{articles.map(item => <Link key={item.id} to={`/practice/${item.id}`} className="block rounded-2xl border border-border bg-white p-5 transition-colors hover:border-teal-400"><h3 className="break-words font-semibold text-primary">{item.title || 'Untitled article'}</h3><p className="mt-2 text-xs text-muted-foreground">{item.language} · {item.raw_text.trim().split(/\s+/u).filter(Boolean).length} words</p><p className="mt-3 line-clamp-2 break-words text-sm leading-relaxed text-slate-500">{item.raw_text}</p><span className="mt-4 block text-xs font-semibold text-teal-800">Open practice →</span></Link>)}</div>}
+            {!articles.length ? <div className="rounded-2xl border border-dashed border-border bg-white p-8 text-center"><BookOpen className="mx-auto size-7 text-slate-400" /><p className="mt-4 text-sm font-semibold text-primary">Your next reading session starts here</p><p className="mt-2 text-sm text-muted-foreground">Upload or paste an article to save it and begin typing. Articles saved from Article Import will also appear here.</p></div> : <div className="space-y-3">{articles.map(item => <Link key={item.id} to={`/practice/${item.id}`} className="block rounded-2xl border border-border bg-white p-5 transition-colors hover:border-teal-400"><h3 className="break-words font-semibold text-primary">{item.title || 'Untitled article'}</h3><p className="mt-2 text-xs text-muted-foreground">{item.language} · {item.raw_text.trim().split(/\s+/u).filter(Boolean).length} words</p><p className="mt-3 line-clamp-2 break-words text-sm leading-relaxed text-slate-500">{item.raw_text}</p><span className="mt-4 block text-xs font-semibold text-teal-800">Open practice →</span></Link>)}</div>}
           </section>
         </div>
       </>}
