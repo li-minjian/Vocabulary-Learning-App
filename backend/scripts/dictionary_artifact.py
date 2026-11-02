@@ -61,7 +61,7 @@ def package(database, snapshot_manifest, output, lockfile, version='2026-11-01.1
     return {'version': version, 'artifact_sha256': manifest['artifact_sha256'], 'artifact_bytes': manifest['artifact_bytes']}
 
 
-def install(url, lockfile, destination, allow_local_http=False):
+def install(url, lockfile, destination, allow_local_http=False, access_token_file=None):
     manifest = json.loads(Path(lockfile).read_text())
     destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
@@ -69,8 +69,13 @@ def install(url, lockfile, destination, allow_local_http=False):
         compressed, database = Path(directory) / 'artifact.zst', Path(directory) / 'dictionary.sqlite3'
         if url.startswith('gs://'):
             from google.cloud import storage
+            credentials = None
+            if access_token_file:
+                from google.oauth2.credentials import Credentials
+                credentials = Credentials(token=Path(access_token_file).read_text().strip())
             bucket, name = url[5:].split('/', 1)
-            blob = storage.Client().bucket(bucket).blob(name)
+            client = storage.Client(project=os.getenv('GOOGLE_CLOUD_PROJECT'), credentials=credentials)
+            blob = client.bucket(bucket).blob(name)
             blob.reload()
             if blob.size != manifest['artifact_bytes']:
                 raise ValueError('Dictionary artifact size mismatch')
@@ -116,6 +121,7 @@ if __name__ == '__main__':
     fetch.add_argument('--lockfile', required=True)
     fetch.add_argument('--destination', required=True)
     fetch.add_argument('--allow-local-http', action='store_true')
+    fetch.add_argument('--access-token-file', help='BuildKit-mounted short-lived OAuth token; never stored in the image')
     arguments = vars(parser.parse_args())
     command = arguments.pop('command')
     try:

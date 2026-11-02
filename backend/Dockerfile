@@ -12,12 +12,14 @@ COPY . .
 
 ARG DICTIONARY_ARTIFACT_URL
 ARG ALLOW_LOCAL_DICTIONARY_HTTP=0
-RUN --mount=type=secret,id=gcp_adc \
+ARG GCP_PROJECT
+RUN --mount=type=secret,id=gcp_adc --mount=type=secret,id=gcp_access_token \
     set -eu; \
     if [ -f /run/secrets/gcp_adc ]; then export GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcp_adc; fi; \
     set --; \
     if [ "$ALLOW_LOCAL_DICTIONARY_HTTP" = 1 ]; then set -- --allow-local-http; fi; \
-    python scripts/dictionary_artifact.py install --url "$DICTIONARY_ARTIFACT_URL" \
+    if [ -f /run/secrets/gcp_access_token ]; then set -- "$@" --access-token-file /run/secrets/gcp_access_token; fi; \
+    GOOGLE_CLOUD_PROJECT="$GCP_PROJECT" python scripts/dictionary_artifact.py install --url "$DICTIONARY_ARTIFACT_URL" \
       --lockfile dictionary.lock.json --destination /opt/voca/dictionary "$@"
 
 EXPOSE 8080
