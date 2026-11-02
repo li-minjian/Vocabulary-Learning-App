@@ -1,0 +1,32 @@
+import { useState } from 'react';
+import { Pencil } from 'lucide-react';
+import type { ImportGroup, ImportRow, RowResult } from '../../lib/fileImport';
+import { cellValue, targetFields, type GroupConfig } from '../../lib/importMapping';
+
+const panel = 'rounded-2xl border border-border bg-white p-5 sm:p-6';
+const labels: Record<string,string> = { question:'Question / front',answer:'Answer / back',explanation:'Explanation',choices:'Hint options',instruction:'Instructions',source:'Source deck',completed:'Completed text',transcript:'Transcript' };
+function SourcePicker({label,group,cells,value,onChange,raw=false}:{label:string;group:ImportGroup;cells:string[];value:string;onChange:(value:string)=>void;raw?:boolean}) {
+  return <label className="mt-2 block text-xs font-semibold text-slate-600">{label} source<select aria-label={`${label} source`} value={value} onChange={event=>onChange(event.target.value)} className="mt-1 min-h-10 w-full rounded-lg border bg-white px-2 text-sm text-slate-900"><option value="">{label==='Language'?'Use default language':label==='Word / phrase'?'Choose a source (required)':'Exclude field'}</option>{group.fields.map(field=><option key={field.column} value={String(field.column)}>{field.name}{field.derived ? ' · extracted from cloze' : ''} — {(raw?(cells[field.column]||''):cellValue(group,cells,field.column)).slice(0,55) || '(empty in this example)'}</option>)}</select></label>;
+}
+export function SourceCard({group,config,cells,onChange}:{group:ImportGroup;config:GroupConfig;cells:string[];onChange:(mapping:Record<string,string>)=>void}) {
+  const [editing,setEditing] = useState('');
+  const entries = Object.entries(labels).filter(([key])=>(key in config.sourceMapping&&(['question','answer'].includes(key)||!!cells[Number(config.sourceMapping[key])]))||editing===key);
+  return <article className={`${panel} space-y-4`} aria-label="Source learning card"><div><h3 className="text-lg font-bold">Exercise preview</h3><p className="text-xs text-muted-foreground">Text interpretation of one source note. Media, typed-answer scripts and custom Anki layout are not executed.</p></div>
+    {group.analysis.fields.some(field=>field.role==='metadata'&&cells[field.column])&&<div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">{group.analysis.fields.filter(field=>field.role==='metadata'&&cells[field.column]).map(field=><p key={field.column}><strong>{field.name}: </strong>{cells[field.column]}</p>)}</div>}
+    {entries.map(([key,label])=><div key={key} className={key==='answer' ? 'rounded-xl bg-teal-50 p-4' : ''}><div className="flex items-center justify-between gap-2"><h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</h4><button type="button" aria-label={`Change ${label} source`} className="rounded-lg p-2 hover:bg-slate-100" onClick={()=>setEditing(editing===key?'':key)}><Pencil size={14}/></button></div><p data-testid={`source-${key}`} className="whitespace-pre-wrap break-words text-sm leading-relaxed">{cells[Number(config.sourceMapping[key])] || 'No value in this example'}</p>{editing===key&&<SourcePicker raw label={label} group={group} cells={cells} value={config.sourceMapping[key]||''} onChange={value=>{const next={...config.sourceMapping};if(value==='')delete next[key];else next[key]=value;onChange(next);setEditing('');}}/>}</div>)}
+    {!entries.length&&<p className="text-sm text-amber-900">The source meaning is unresolved. Open field evidence below to inspect it.</p>}
+    <div className="flex flex-wrap gap-2">{Object.entries(labels).filter(([key])=>['question','answer','explanation'].includes(key)&&(!(key in config.sourceMapping)||!cells[Number(config.sourceMapping[key])])).map(([key,label])=><button key={key} className="text-xs underline" onClick={()=>setEditing(key)}>Add {label}</button>)}</div>
+  </article>;
+}
+export function VocabularyCard({row,group,config,cells,onChange,readOnly=false}:{row:ImportRow|RowResult;group?:ImportGroup;config?:GroupConfig;cells?:string[];onChange?:(mapping:Record<string,string>)=>void;readOnly?:boolean}) {
+  const [editing,setEditing] = useState('');
+  const value = (key:string) => {
+    const item=(row as unknown as Record<string,unknown>)[key];
+    if(Array.isArray(item))return item.map(x=>typeof x==='string'?x:x.sentence).join('\n');
+    return typeof item==='string'?item:'';
+  };
+  return <article className={`${panel} space-y-4`} aria-label={readOnly?'Confirmed vocabulary card':'Proposed vocabulary card'}><div><h3 className="text-lg font-bold">{readOnly?'Final vocabulary preview':'Vocabulary preview'}</h3><p className="text-xs text-muted-foreground">{readOnly?'Normalized by the same service used to save your words.':'Changes below update this card immediately. Saving happens only after confirmation.'}</p></div>
+    {targetFields.filter(([key])=>key==='word'||!!value(key)||editing===key).map(([key,label])=><div key={key}><div className="flex items-center justify-between gap-2"><h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</h4>{!readOnly&&<button type="button" aria-label={`Change ${label} source`} className="rounded-lg p-2 hover:bg-slate-100" onClick={()=>setEditing(editing===key?'':key)}><Pencil size={14}/></button>}</div><p data-testid={`preview-${key}`} className={`whitespace-pre-wrap break-words ${key==='word'?'text-2xl font-bold text-[#002434]':'text-sm leading-relaxed'}`}>{value(key)||(key==='word'?'Choose the words or phrases you want to learn':'')}</p>{!readOnly&&editing===key&&group&&config&&cells&&onChange&&<SourcePicker label={label} group={group} cells={cells} value={config.mapping[key]||''} onChange={column=>{onChange({...config.mapping,[key]:column});setEditing('');}}/>}</div>)}
+    {!readOnly&&<div className="flex flex-wrap gap-x-3 gap-y-2 border-t pt-3">{targetFields.filter(([key])=>['translation','definition','examples'].includes(key)&&!value(key)).map(([key,label])=><button type="button" key={key} className="text-xs underline" onClick={()=>setEditing(key)}>Add {label}</button>)}<details className="w-full text-xs"><summary className="cursor-pointer">More vocabulary fields</summary><div className="mt-2 flex flex-wrap gap-3">{targetFields.filter(([key])=>!['word','translation','definition','examples'].includes(key)&&!value(key)).map(([key,label])=><button type="button" key={key} className="underline" onClick={()=>setEditing(key)}>Add {label}</button>)}</div></details></div>}
+  </article>;
+}

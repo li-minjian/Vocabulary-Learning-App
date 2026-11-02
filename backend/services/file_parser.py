@@ -42,16 +42,17 @@ class _TextOnly(HTMLParser):
             self.parts.append(data)
 
 
-def plain_text(value):
+def plain_text(value, preserve_cloze=False):
     parser = _TextOnly()
     parser.feed(str(value or ''))
     result = ''.join(parser.parts)
     result = re.sub(r'\[sound:[^\]]+\]', '', result)
-    result = re.sub(r'\{\{c\d+::(.*?)(?:::.*?)?\}\}', r'\1', result, flags=re.S)
+    if not preserve_cloze:
+        result = re.sub(r'\{\{c\d+::(.*?)(?:::.*?)?\}\}', r'\1', result, flags=re.S)
     return result.strip()
 
 
-def _finish(rows, columns, numbers, warnings, digest, has_header=False):
+def _finish(rows, columns, numbers, warnings, digest, has_header=False, groups=None, provenance=None):
     if len(rows) > MAX_ROWS:
         raise ImportValidationError(f'At most {MAX_ROWS} rows can be imported at once.')
     if len(columns) > MAX_COLUMNS:
@@ -62,9 +63,12 @@ def _finish(rows, columns, numbers, warnings, digest, has_header=False):
             invalid.append({'row': numbers[index], 'message': f'Expected {len(columns)} columns; found {len(row)}. Map available fields or omit this row.'})
         if any(len(cell) > MAX_CELL for cell in row):
             raise ImportValidationError(f'Row {numbers[index]} contains a field longer than {MAX_CELL} characters.')
-    return {'import_id': digest, 'columns': columns, 'rows': rows, 'row_numbers': numbers,
+    while len(columns) < max(map(len, rows)):
+        columns.append(f'Extra column {len(columns) + 1}')
+    from services.import_semantics import enrich
+    return enrich({'import_id': digest, 'columns': columns, 'rows': rows, 'row_numbers': numbers,
             'warnings': warnings, 'invalid_rows': invalid, 'has_header': has_header,
-            'count': len(rows)}
+            'count': len(rows)}, groups, provenance)
 
 
 def parse_file(data, filename, delimiter=None, has_header=None):
@@ -119,7 +123,7 @@ def parse_file(data, filename, delimiter=None, has_header=None):
                 raise ImportValidationError(f'At most {MAX_ROWS} rows can be imported at once.')
             if len(row) > MAX_COLUMNS:
                 raise ImportValidationError(f'At most {MAX_COLUMNS} columns are supported.')
-            rows.append([plain_text(cell) if metadata.get('html', '').lower() == 'true' else cell.strip() for cell in row])
+            rows.append([plain_text(cell, preserve_cloze=True) for cell in row])
             numbers.append(first_line)
     except csv.Error as exc:
         raise ImportValidationError(f'Invalid quoted field near line {reader.line_num}: {exc}') from exc
@@ -150,7 +154,7 @@ def parse_file(data, filename, delimiter=None, has_header=None):
 
 
 def _parse_apkg(data, digest):
-    warnings = ['Anki scheduling history and media are not imported. HTML is converted to plain text. Verify field mapping for custom note types.']
+    warnings = ['Anki media and scheduling are excluded. Text is extracted safely; inspect the interpreted cards before saving.']
     try:
         archive = zipfile.ZipFile(io.BytesIO(data))
         entries = archive.infolist()
@@ -220,21 +224,25 @@ def _parse_apkg(data, digest):
                     decks = {str(row[0]): {'name': row[1]} for row in conn.execute('SELECT id, name FROM decks LIMIT 10000')}
                 if any(not isinstance(deck, dict) for deck in decks.values()):
                     raise ImportValidationError('Unsupported Anki deck metadata. Export as Anki TXT instead.')
-                note_decks = {}
+                note_decks, card_counts = {}, {}
                 if 'cards' in tables:
-                    for nid, did in conn.execute('SELECT nid, MIN(did) FROM cards GROUP BY nid LIMIT 10001'):
-                        note_decks[str(nid)] = plain_text(decks.get(str(did), {}).get('name', '')).replace('\x1f', '::')
+                    for nid, count, deck_ids in conn.execute('SELECT nid, COUNT(*), GROUP_CONCAT(DISTINCT did) FROM cards GROUP BY nid LIMIT 10001'):
+                        ids = sorted(str(deck_ids).split(','))
+                        if len(ids) > 100:
+                            raise ImportValidationError('A note has too many deck relationships.')
+                        note_decks[str(nid)] = [plain_text(decks.get(did, {}).get('name', '')).replace('\x1f', '::') for did in ids]
+                        card_counts[str(nid)] = count
                 notes = conn.execute('SELECT id, mid, flds, tags FROM notes ORDER BY id LIMIT 10001').fetchall()
                 if len(notes) > MAX_ROWS:
                     raise ImportValidationError(f'At most {MAX_ROWS} Anki notes can be imported at once.')
-                all_names = {field.get('name') for model in models.values() if isinstance(model, dict) for field in model.get('flds', []) if isinstance(field, dict)}
+                all_names = {field.get('name') for model in models.values() if isinstance(model, dict) and isinstance(model.get('flds', []), list) for field in model.get('flds', []) if isinstance(field, dict) and isinstance(field.get('name'), str)}
                 metadata_names = {}
                 for name in ('Anki tags', 'Source deck'):
                     candidate = name
                     while candidate in all_names:
                         candidate += ' (metadata)'
                     metadata_names[name] = candidate
-                columns, records = [], []
+                columns, records, groups, provenance = [], [], {}, []
                 for nid, mid, fields, tags in notes:
                     values = str(fields).split('\x1f')
                     model = models.get(str(mid), {})
@@ -248,19 +256,39 @@ def _parse_apkg(data, digest):
                     if len(set(field_names)) != len(field_names):
                         field_names = [f'{name} (field {i + 1})' for i, name in enumerate(field_names)]
                         warnings.append('Repeated Anki field names were disambiguated. Map these columns manually.')
-                    record = dict(zip(field_names, map(plain_text, values)))
+                    record = dict(zip(field_names, (plain_text(value, preserve_cloze=True) for value in values)))
                     record[metadata_names['Anki tags']] = plain_text(tags)
-                    record[metadata_names['Source deck']] = note_decks.get(str(nid), '')
+                    record[metadata_names['Source deck']] = ' / '.join(note_decks.get(str(nid), []))
                     for name in record:
                         if name not in columns:
                             if len(columns) >= MAX_COLUMNS:
                                 raise ImportValidationError(f'At most {MAX_COLUMNS} distinct Anki columns are supported.')
                             columns.append(name)
+                    from services.import_semantics import template_structure
+                    if str(mid) not in groups:
+                        try:
+                            templates = template_structure(model, field_names)
+                        except ValueError as error:
+                            raise ImportValidationError(str(error)) from error
+                        groups[str(mid)] = {'id': str(mid), 'name': plain_text(model.get('name') or 'Custom cards')[:200],
+                                            'model_type': model.get('type'), 'field_names': list(record),
+                                            'row_numbers': [], 'templates': templates, 'native_cards': 0}
+                    group = groups[str(mid)]
+                    if group['field_names'] != list(record):
+                        raise ImportValidationError('Notes of one type have inconsistent fields. Export a repaired Anki deck or TXT.')
+                    group['row_numbers'].append(len(records) + 1)
+                    group['native_cards'] += card_counts.get(str(nid), 0)
+                    provenance.append({'note_id': str(nid), 'group_id': str(mid), 'card_count': card_counts.get(str(nid), 0),
+                                       'deck_names': note_decks.get(str(nid), []),
+                                       'has_media': any(re.search(r'<(?:img|audio|video)\b|\[sound:', cell, re.I) for cell in values),
+                                       'cloze_indices': sorted({int(value) for cell in values for value in re.findall(r'\{\{c(\d+)::', cell)})})
                     records.append(record)
                 if not records:
                     raise ImportValidationError('The APKG contains no vocabulary notes.')
                 rows = [[record.get(name, '') for name in columns] for record in records]
-                return _finish(rows, columns, list(range(1, len(rows) + 1)), warnings, digest)
+                for group in groups.values():
+                    group['fields'] = [{'name': name, 'column': columns.index(name)} for name in group.pop('field_names')]
+                return _finish(rows, columns, list(range(1, len(rows) + 1)), warnings, digest, groups=list(groups.values()), provenance=provenance)
     except ImportValidationError:
         raise
     except (zipfile.BadZipFile, RuntimeError, sqlite3.Error, KeyError, OSError) as exc:

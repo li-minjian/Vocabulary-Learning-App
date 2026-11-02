@@ -23,11 +23,11 @@ test('file import upload, mapping, collection, duplicate skip and zero AI', asyn
   page.on('request', request => { if (/\/api\/(ai|import\/(analyze|extract-text|check-typo))/.test(request.url())) aiRequests++; });
   await signIn(page);
   await page.goto('/import');
-  await page.getByRole('button', { name: /Import a file or list/ }).click();
+  await page.getByRole('button', { name: /Upload vocabulary or Anki file/ }).click();
   await expect(page).toHaveURL(/\/import\/files/);
   await page.getByLabel('Vocabulary file').setInputFiles({ name: 'words.csv', mimeType: 'text/csv', buffer: Buffer.from('\ufeffword,translation,example\ncurious,好奇的,"Hello, world"\ngrüßen,问候,Hallo\ncurious,duplicate,Again\n,invalid,No word') });
-  await page.getByRole('button', { name: /Parse/ }).click();
-  await expect(page.getByRole('heading', { name: /Map your/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Analyze file' }).click();
+  await expect(page.getByRole('heading', { name: /entries analyzed/ })).toBeVisible();
   await page.getByLabel('Collection', { exact: true }).selectOption('33333333-3333-3333-3333-333333333333');
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: 'test-results/file-import-mapping-desktop.png', fullPage: true, animations: 'disabled' });

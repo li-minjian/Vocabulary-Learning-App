@@ -36,10 +36,10 @@ test('50 MiB selection accepted, +1 byte and empty rejected immediately on mobil
   await writeFile(boundary, 'word\nhello\n'); await truncate(boundary, 52428800);
   await writeFile(over, 'word\nhello\n'); await truncate(over, 52428801);
   await file.setInputFiles(boundary);
-  await expect(page.getByRole('button', { name: /Parse/ })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Analyze file' })).toBeEnabled();
   await file.setInputFiles(over);
   await expect(page.getByText('File exceeds 50 MiB (52,428,800 bytes).', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Parse/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Analyze file' })).toBeDisabled();
   await file.setInputFiles({ name: 'empty.csv', mimeType: 'text/csv', buffer: Buffer.alloc(0) });
   await expect(page.getByText('Choose a non-empty file.', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
@@ -97,13 +97,13 @@ test('GCS transport sends bytes directly without Supabase JWT and retries proces
     processes++;
     expect(route.request().postDataBuffer()!.length).toBeLessThan(1024);
     await route.fulfill(processes === 1 ? { status: 503, json: { message: 'Synthetic retryable verification failure.' } } :
-      { json: { columns: ['word', 'translation'], rows: [['hello', 'hi']], row_numbers: [2], count: 1, invalid_rows: [], warnings: [], import_id: 'synthetic' } });
+      { json: { columns: ['word', 'translation'], rows: [['hello', 'hi']], row_numbers: [2], count: 1, invalid_rows: [], warnings: [], import_id: 'synthetic', provenance:[{}], groups:[{id:'table',name:'Structured list',count:1,row_numbers:[2],fields:[{name:'word',column:0},{name:'translation',column:1}],native_cards:0,templates:[],analysis:{kind:'vocabulary',confidence:.95,reason:'Synthetic transport fixture',fields:[],mapping:{word:'0',translation:'1'},source_mapping:{},sample_rows:[2],unresolved:[]}}] } });
   });
   await page.getByLabel('Vocabulary file').setInputFiles({ name: 'direct.csv', mimeType: 'text/csv', buffer: Buffer.from('word,translation\nhello,hi\n') });
-  await page.getByRole('button', { name: /Parse/ }).click();
+  await page.getByRole('button', { name: 'Analyze file' }).click();
   await expect(page.getByRole('alert')).toContainText('Synthetic retryable verification failure.');
-  await page.getByRole('button', { name: /Parse/ }).click();
-  await expect(page.getByRole('heading', { name: /Map your/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Analyze file' }).click();
+  await expect(page.getByRole('heading', { name: /entries analyzed/ })).toBeVisible();
   expect(uploads).toBe(1);
   expect(processes).toBe(2);
 });

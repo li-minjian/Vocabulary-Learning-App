@@ -73,14 +73,14 @@ export function ImportHub() {
           </div>
           <button 
             onClick={() => navigate('/import/step1')}
-            className="mt-6 text-[13.5px] font-bold text-primary hover:text-primary/80 flex items-center gap-1.5 transition-colors cursor-pointer w-fit"
+            className="mt-6 min-h-11 w-full rounded-xl bg-[#002434] px-5 py-3 text-sm font-semibold text-white hover:bg-[#164355] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 flex items-center justify-center gap-2"
           >
-            <span>Configure settings</span>
+            <span>Paste text or upload a document</span>
             <ArrowRight className="w-4 h-4" strokeWidth={2} />
           </button>
         </div>
 
-        {/* Future CSV/Anki Coming soon */}
+        {/* Existing file importer */}
         <div className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col justify-between">
           <div className="space-y-2">
             <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-450">
@@ -88,16 +88,14 @@ export function ImportHub() {
             </div>
             <div className="flex items-center gap-2 pt-1">
               <h3 className="font-bold text-[16px] text-slate-900">File & List Import</h3>
-              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[10.5px] font-bold text-slate-500 rounded border border-border uppercase tracking-wide">
-                Ready
-              </span>
+
             </div>
             <p className="text-[13.5px] text-muted-foreground leading-relaxed font-medium">
               Support for importing CSV / TSV vocabulary lists, Anki TXT and APKG packages directly into custom collections.
             </p>
           </div>
-          <button onClick={() => navigate('/import/files')} className="mt-6 text-sm font-bold text-primary text-left">Import a file or list →</button>
-          <p className="mt-2 text-xs text-muted-foreground">Map fields, check duplicates, choose a collection. No AI requests.</p>
+          <button onClick={() => navigate('/import/files')} className="mt-6 min-h-11 w-full rounded-xl bg-[#002434] px-5 py-3 text-sm font-semibold text-white hover:bg-[#164355] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600">Upload vocabulary or Anki file →</button>
+          <p className="mt-2 text-xs text-muted-foreground">Automatic interpretation, live card preview, then choose a collection. No AI requests.</p>
         </div>
       </div>
 

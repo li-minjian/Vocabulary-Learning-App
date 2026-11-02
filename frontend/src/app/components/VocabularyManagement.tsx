@@ -4,7 +4,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from './ui/dropdown-menu';
 import { announceVocabularyChange, clearVocabulary, deleteVocabularyBatch, downloadVocabularyBackup, prepareVocabularyClear, type VocabularyBackup } from '../../lib/vocabularyManagement';
 
-const button = 'min-h-10 rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50';
+const button = 'inline-flex items-center justify-center gap-1 min-h-10 rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50';
 export function VocabularyManagement({ selectedIds, onRefresh, onClearSelection }: {
   selectedIds: string[]; onRefresh: () => Promise<void>; onClearSelection: () => void;
 }) {
@@ -57,11 +57,11 @@ export function VocabularyManagement({ selectedIds, onRefresh, onClearSelection 
     }
   }
   return <>
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="relative flex flex-wrap items-center gap-2">
       {!!selectedIds.length && <button className={`${button} border-rose-200 text-rose-700`} disabled={busy} onClick={() => { setMode('batch'); setError(''); }}>Delete selected</button>}
-      <DropdownMenu><DropdownMenuTrigger asChild><button className={button} aria-label="Vocabulary management"><MoreVertical size={18} /></button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => { setMode('clear'); setError(''); setBackup(null); setConfirmation(''); }}>Clear entire Vocabulary Library</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+      <DropdownMenu><DropdownMenuTrigger asChild><button className={button} disabled={busy} aria-label="Vocabulary management"><MoreVertical size={18} /><span className="ml-1">Manage</span></button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => { setMode('clear'); setError(''); setBackup(null); setConfirmation(''); }}>Clear entire Vocabulary Library</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+      {notice && <div role="status" className="fixed bottom-4 left-4 right-4 z-50 ml-auto max-w-sm break-words rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900 shadow-lg">{notice}<button className="mt-2 block underline" onClick={() => setNotice('')}>Dismiss</button></div>}
     </div>
-    {notice && <p role="status" className="w-full break-words rounded-xl bg-teal-50 p-3 text-sm text-teal-900">{notice}</p>}
     <AlertDialog open={mode !== null} onOpenChange={open => { if (!open) close(); }}><AlertDialogContent className="max-h-[90vh] overflow-y-auto bg-white">
       <AlertDialogHeader><AlertDialogTitle>{mode === 'batch' ? `Delete ${selectedIds.length} selected words?` : 'Clear entire Vocabulary Library'}</AlertDialogTitle><AlertDialogDescription>
         {mode === 'batch' ? 'The selected words and their vocabulary-specific learning data, examples and word-tag links will be removed.' : 'This removes all your vocabulary, including words in Collections, and vocabulary-specific SRS history. Collection folders, Articles, account, settings, tags, dictionary datasets and other accounts are preserved.'}
