@@ -186,3 +186,12 @@ GitHub state correction: PR #5 was already merged externally on 2026-11-01 at
 The existing `codex/voca-platform-upgrade` branch is retained. New commits require
 a follow-up draft PR; #5 receives a clearly labeled follow-up link rather than
 claiming the new changes were included in its historical merge.
+
+Focused implementation checkpoint: `45b79076c2cc3fad7eb8424fd62fa9ea1894bd1a`,
+pushed to the existing feature branch. Follow-up
+[draft PR #6](https://github.com/li-minjian/Vocabulary-Learning-App/pull/6) targets
+main; PR #5 now links it and explicitly distinguishes these changes from its merge.
+The release artifact is retained locally at
+`backend/data/dictionary/voca-dictionary-2026-11-01.1.sqlite3.zst`, ignored by Git;
+its compressed hash matches the tracked lock. A final documentation checkpoint
+records these delivery links without embedding its own commit hash.

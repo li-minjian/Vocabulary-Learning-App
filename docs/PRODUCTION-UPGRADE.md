@@ -4,8 +4,9 @@ Status, 2026-11-02: **Implemented and locally verified. Not cloud-verified.**
 No buckets, IAM bindings, secrets, environment files or production deployments
 were changed. Commands below are operator templates requiring separate approval.
 The current branch continues the work from [PR #5](https://github.com/li-minjian/Vocabulary-Learning-App/pull/5).
-GitHub inspection found #5 already merged on 2026-11-01; this upgrade requires a
-follow-up draft PR from the same feature branch. It is not part of that earlier merge.
+GitHub inspection found #5 already merged on 2026-11-01; this upgrade is in
+[draft PR #6](https://github.com/li-minjian/Vocabulary-Learning-App/pull/6) from the
+same feature branch. It is not part of that earlier merge.
 
 ## Approval boundary and observed service
 
@@ -51,8 +52,9 @@ The source snapshot and its attribution remain in [DICTIONARY.md](DICTIONARY.md)
 | Artifact SHA-256 | `760f954052a785fe5b19295ff89ea0041dd2f3dbea49d3ce9f884b411296bfc1` |
 
 The validated existing snapshot was packaged locally, **not published**. In this
-session the staged artifact is `/private/tmp/voca-dictionary-2026-11-01.1/`.
-Archive that release output in approved storage; `/private/tmp` is not durable
+session the staged artifact is
+`backend/data/dictionary/voca-dictionary-2026-11-01.1.sqlite3.zst` (Git-ignored).
+Archive that release output in approved storage; a local checkout is not cloud
 distribution. Production builds use the published GCS object and Git lock only,
 with no dependency on the Mac. Reproduce packaging using retained snapshot files:
 

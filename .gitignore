@@ -17,5 +17,6 @@ backend/data/dictionary/*.sqlite*
 backend/data/dictionary/*.jsonl
 backend/data/dictionary/*.zip
 backend/data/dictionary/*.manifest.json
+backend/data/dictionary/*.zst
 test-results/
 playwright-report/
