@@ -300,6 +300,14 @@ constructing the client. Existing bucket access and self-signBlob IAM remain
 unchanged; no additional role, key or resource is required. A native SDK/metadata
 credential regression reproduces the old failure and passes with the fix.
 
+Fix revision: `vocabulary-learning-app-upload-fix-b34e99c`, image
+`sha256:f25143b4131b8319dd844c52d224132a2bf9f9472a2592a63eea01dfcecf4d02`.
+21 upload tests and two targeted Linux-image tests pass. Prior environment,
+runtime identity, bucket IAM and service-account IAM were compared unchanged.
+Immediate rollback remains `vocabulary-learning-app-practice-5982771`.
+The actual authenticated request outcome is recorded in
+[PR #8](https://github.com/li-minjian/Vocabulary-Learning-App/pull/8).
+
 Unexpected upload failures now log `upload_failure` with operation, error ID,
 exception type/module, allowlisted reason codes, upstream status and structural
 stack locations. Raw exception text, request data/headers, credentials, signed
