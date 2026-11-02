@@ -4,6 +4,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from services.file_parser import ImportValidationError, MAX_FILE_BYTES, parse_file
 from services.file_import_service import commit_import, preview_import
 from services.supabase_client import get_supabase
+from services.upload_policy import POLICY
 
 file_import_bp = Blueprint('file_import', __name__)
 
@@ -15,7 +16,7 @@ def validate_request():
     if not getattr(g, 'user_id', None):
         return jsonify({'message': 'Authentication required.'}), 401
     # Bound request bodies as well as decoded file sizes, including chunked requests.
-    request.max_content_length = 12 * 1024 * 1024
+    request.max_content_length = POLICY['max_control_bytes']
 
 
 @file_import_bp.errorhandler(ImportValidationError)
@@ -25,7 +26,7 @@ def invalid(error):
 
 @file_import_bp.errorhandler(RequestEntityTooLarge)
 def too_large(error):
-    return jsonify({'message': 'Import request exceeds 12 MiB.'}), 413
+    return jsonify({'message': 'Import control request exceeds 12 MiB. Upload files up to 50 MiB using the secure upload flow.'}), 413
 
 
 @file_import_bp.post('/parse')

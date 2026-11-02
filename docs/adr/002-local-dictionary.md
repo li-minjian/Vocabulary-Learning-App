@@ -22,5 +22,10 @@ Consequences: Index/downloads are sizable and Git-ignored; fresh clones run the
 installer. German Chinese translations are incomplete. Public lookup cache is
 process-local and contains no personal context; explicit AI results stay in UI state.
 
+Deployment addition, 2026-11-02: [ADR 005](005-build-time-dictionary-artifact.md)
+pins the existing snapshot as a verified build-time artifact for clean containers.
+The source installer remains an explicit maintenance/development tool; production
+never downloads mutable upstream sources or rebuilds at startup.
+
 Implementation: `backend/services/dictionary_service.py`,
 `backend/scripts/install_dictionary.py`, `frontend/src/lib/dictionary.ts`.

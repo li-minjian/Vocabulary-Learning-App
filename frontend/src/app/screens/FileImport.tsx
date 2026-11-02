@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { validateFile, cancelUpload, type UploadProgress } from '../../lib/uploads';
 import { Link } from 'react-router';
 import { ArrowLeft, CheckCircle2, FileUp, Loader2 } from 'lucide-react';
 import { createCollection, fetchCollections, type Collection } from '../../lib/api';
@@ -40,17 +41,24 @@ export function FileImport() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const uploadController = useRef<AbortController | null>(null);
   const [collectionError, setCollectionError] = useState('');
+  let fileValidation = '';
+  try { if (file) validateFile(file, 'file'); } catch (cause) { fileValidation = cause instanceof Error ? cause.message : 'Invalid file.'; }
 
   useEffect(() => { void loadCollections(); }, []);
+  useEffect(() => () => uploadController.current?.abort(), []);
   async function loadCollections() {
     try { setCollections(await fetchCollections()); setCollectionError(''); }
     catch { setCollectionError('Collections could not be loaded. Retry before choosing a collection.'); }
   }
   async function parse() {
     setBusy(true); setError('');
+    uploadController.current = new AbortController();
     try {
-      const list = await parseList(file, text, delimiter, header);
+      if (file) validateFile(file, 'file');
+      const list = await parseList(file, text, delimiter, header, { signal: uploadController.current.signal, onProgress: setUploadProgress });
       const next: Record<string, string> = {};
       fields.forEach(([key, , aliases]) => {
         const index = list.columns.findIndex(column => (aliases as readonly string[]).includes(column.trim().toLowerCase()));
@@ -61,8 +69,8 @@ export function FileImport() {
       // A new upload is a new import; retries retain this exact identity.
       list.import_id = `${list.import_id.slice(0, 64)}:${crypto.randomUUID()}`;
       setParsed(list); setMapping(next); setSelectedRows(new Set(list.row_numbers)); setSourcePage(0); setStage('map');
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to parse this list.'); }
-    finally { setBusy(false); }
+    } catch (cause) { setError(cause instanceof DOMException && cause.name === 'AbortError' ? 'Upload cancelled. You can retry.' : cause instanceof Error ? cause.message : 'Unable to parse this list.'); }
+    finally { setBusy(false); setUploadProgress(null); }
   }
   async function checkPreview() {
     if (!parsed || mapping.word === '') return;
@@ -123,14 +131,15 @@ export function FileImport() {
     <ol aria-label="Import steps" className="flex flex-wrap gap-4 text-sm">{(['upload', 'map', 'confirm', 'result'] as const).map((step, i) => <li key={step} aria-current={stage === step ? 'step' : undefined} className={stage === step ? 'font-bold text-teal-700' : 'text-muted-foreground'}>{i + 1}. {({ upload: 'Upload', map: 'Map & destination', confirm: 'Preview & confirm', result: 'Result' })[step]}</li>)}</ol>
     {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
     {stage === 'upload' && <section className="space-y-5 rounded-2xl border border-border bg-card p-6">
-      <div><label htmlFor="voca-file" className="mb-2 block text-sm font-semibold">Vocabulary file (up to 10 MiB)</label>
+      <div><label htmlFor="voca-file" className="mb-2 block text-sm font-semibold">Vocabulary file (up to 50 MiB)</label>
         <input id="voca-file" type="file" accept=".csv,.tsv,.txt,.apkg" className={inputStyle} disabled={busy} onChange={event => { setFile(event.target.files?.[0] || null); setError(''); }} />
         <p className="mt-2 text-xs text-muted-foreground">CSV, TSV, Anki plain-text export or APKG. Scheduling and media are excluded.</p></div>
       {!file && <div><label htmlFor="voca-pasted-list" className="mb-2 block text-sm font-semibold">Or paste a vocabulary list</label><textarea id="voca-pasted-list" className={`${inputStyle} font-mono`} rows={6} placeholder={'word\ttranslation\ncurious\t好奇的'} value={text} onChange={event => setText(event.target.value)} disabled={busy} /></div>}
       <div className="grid gap-4 sm:grid-cols-2"><div><label htmlFor="voca-delimiter" className="mb-2 block text-sm font-semibold">Delimiter</label><select id="voca-delimiter" value={delimiter} onChange={event => setDelimiter(event.target.value)} className={inputStyle}><option value="">Detect automatically</option><option value={','}>Comma</option><option value={'\t'}>Tab</option><option value=";">Semicolon</option><option value="|">Pipe</option></select></div>
         <div><label htmlFor="voca-header" className="mb-2 block text-sm font-semibold">First row</label><select id="voca-header" className={inputStyle} value={header} onChange={event => setHeader(event.target.value)}><option value="auto">Detect headers</option><option value="true">Column headers</option><option value="false">Vocabulary data (no header)</option></select></div></div>
-      <button className={buttonStyle} disabled={busy || (!file && !text.trim()) || !!file && file.size > 10 * 1024 * 1024} onClick={parse}>{busy ? <Loader2 className="animate-spin" size={16} /> : <FileUp size={16} />} Parse list</button>
-      {file && file.size > 10 * 1024 * 1024 && <p role="alert" className="text-sm text-red-700">Choose a file smaller than 10 MiB.</p>}
+      <button className={buttonStyle} disabled={busy || (!file && !text.trim()) || !!fileValidation} onClick={parse}>{busy ? <Loader2 className="animate-spin" size={16} /> : <FileUp size={16} />} Parse list</button>
+      {fileValidation && <p role="alert" className="text-sm text-red-700">{fileValidation}</p>}
+      {uploadProgress && <div role="status"><p className="text-sm">{uploadProgress.stage === 'processing' ? 'Verifying and parsing…' : `${uploadProgress.stage} ${uploadProgress.percent}%`}</p><progress className="w-full" max={100} value={uploadProgress.percent} /><button type="button" className="mt-2 text-sm underline" onClick={() => { uploadController.current?.abort(); if (file) void cancelUpload(file).catch(() => {}); }}>Cancel upload</button></div>}
     </section>}
     {parsed && stage === 'map' && <>
       <section className="space-y-4 rounded-2xl border border-border bg-card p-6"><h2 className="text-lg font-bold">Map your {parsed.count.toLocaleString()} rows</h2>

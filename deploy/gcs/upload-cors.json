@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["https://voca118.vercel.app"],
+    "method": ["POST"],
+    "responseHeader": ["Content-Type", "ETag"],
+    "maxAgeSeconds": 600
+  }
+]

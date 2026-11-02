@@ -1,6 +1,6 @@
 # VOCA architecture
 
-Living reference, inspected against this feature branch on 2026-11-01. Current code
+Living reference, inspected against this feature branch on 2026-11-02. Current code
 and observed runtime take precedence over older plans. Read `AGENTS.md` first.
 
 Status vocabulary: **As-Is — Implemented** means inspected source exists;
@@ -25,12 +25,15 @@ flowchart LR
   DB[(Supabase Postgres + RLS)]
   Dictionary[(Installed read-only dictionary index)]
   AI[Gemini API]
+  Uploads[(Private temporary GCS objects)]
   UI -->|session and refresh| Auth
   UI -->|Bearer JWT| API
   UI --> Input --> Progress
   API -->|user JWT forwarded| DB
   API -->|lookup / phrase spans| Dictionary
   API -->|explicit AI action| AI
+  UI -->|signed direct upload, up to 50 MiB| Uploads
+  API -->|verify generation / bounded parse / cleanup| Uploads
   UI -. no per-keystroke HTTP .-> Input
 ```
 
@@ -38,21 +41,31 @@ flowchart LR
 
 **As-Is — Implemented:** React 18, TypeScript, React Router 7, Vite 6,
 Tailwind 4, Lucide, Recharts, Supabase JS; Python/Flask, Flask-CORS,
-Supabase Python, google-generativeai, zstandard for modern APKG. Python 3.12
+Supabase Python, google-generativeai, google-cloud-storage, zstandard for modern APKG,
+and Poppler for local PDF text. Python 3.12
 was used for this branch; Node 22.18+ or newer is needed for built-in TypeScript
 unit tests (verified with Node 25).
 
 Frontend builds to `frontend/dist`; existing Vercel config serves the SPA.
 Backend is an independently hosted Flask service (existing Cloud Run/Docker
-configuration). `docker-compose.yml` and existing Dockerfiles are preserved.
-No deployment or infrastructure configuration was changed.
+configuration). Backend Docker now installs the pinned dictionary artifact at build
+time, excludes local data/secrets, and runs non-root. GCS configuration templates
+exist under `deploy/gcs`; **no actual production resources/configuration were changed**.
+See [production runbook](PRODUCTION-UPGRADE.md) for approval steps and exact limits.
+
+Read-only Cloud Run inspection on 2026-11-02 identified `voca-497321` /
+`europe-west1` / `vocabulary-learning-app`: 1 CPU, 512 MiB, concurrency 80,
+300-second timeout. Proposed parsing headroom (1 GiB/concurrency 8) is not applied.
 
 **Unknown — Not verified:** current production backend revision, deployed
 Supabase constraints and RLS behavior. Zero-row anonymous PostgREST requests verified
 all columns consumed by the new features in seven existing tables (HTTP200); no
-user rows were requested. Vercel read-only metadata confirmed `voca118.vercel.app`
-points to `30f343f8494e7066c1defd374810017c4ac9da5e` on `main`, rather than
-this feature branch. Feature-branch pushes are backups, not production releases.
+user rows were requested. Earlier Vercel read-only metadata identified
+`30f343f8494e7066c1defd374810017c4ac9da5e` on `main`; frontend deployment was
+not reverified during the focused infrastructure assignment. PR #5 was subsequently
+merged externally as `368d3fa63861391eac278c84ca39fdcdaffc68d8`. This assignment
+continues on the same feature branch with a follow-up draft PR; no merge or
+production deployment is performed by this work.
 
 ## Frontend structure and routes
 
@@ -95,15 +108,20 @@ as the existing RLS boundary. Unknown schema/connectivity failures remain visibl
 | API prefix | Owner | Responsibility |
 | --- | --- | --- |
 | `/api/words`, `/collections`, `/tags` | Existing route modules | User vocabulary and relationships |
-| `/api/import` | `routes/import_text.py` | Explicit AI text/image/PDF extraction and typo checking |
+| `/api/import` | `routes/import_text.py` | Explicit AI text analysis/typo checking; legacy base64 extraction returns 410 |
+| `/api/uploads` | `routes/uploads.py`, upload service/store | Authenticated authorization, generation-verified processing, retry receipts, cleanup |
+| `/api/health/dictionary` | `services/dictionary_health.py` | Public safe readiness, 200/503, no paths |
 | `/api/ai` | `routes/ai.py`, `services/ai_service.py` | User-requested enrichment |
 | `/api/review`, `/stats`, `/export` | Existing route modules | Recall/SRS, reporting, exports |
 | `/api/file-import` | `routes/file_import.py` | Parse → preview → idempotent batch commit |
 | `/api/dictionary` | `routes/dictionary.py` | Installed word/form/phrase lookup, no AI fallback |
 | `/api/articles` | `routes/articles.py` | List, get and safely retry article creation |
 
-New contracts: `POST /file-import/parse` accepts multipart file or JSON text,
-delimiter/header settings; `/preview` and `/commit` accept mapped rows,
+Selected files now use `POST /uploads` → direct private GCS POST →
+`POST /uploads/:id/process`; small controls stay on Cloud Run HTTP/1. Local
+development uses authenticated filesystem PUT, explicitly forbidden on Cloud Run.
+`POST /file-import/parse` retains small multipart/pasted JSON compatibility;
+`/preview` and `/commit` accept mapped rows,
 `import_id`, default language, collection ID and `skip|keep_both` conflict policy.
 Results identify every row's ready/invalid/skipped/imported/resumed/failed status.
 `GET /dictionary?q=&language=` returns senses, lemma, IPA, translations,
@@ -164,10 +182,13 @@ bounded ZIP reads and read-only SQLite, with zstandard for `.anki21b`; note fiel
 tags and deck names are converted to plain text. No filesystem extraction or
 template/HTML execution; media and Anki scheduling are excluded with warnings.
 
-Limits: 10 MiB upload, 12 MiB request, 100 MiB decoded collection DB, 250 MiB
-archive total, 10,000 rows, 64 columns, 20,000 characters per cell. SQL work has a
-progress budget. Mixed/custom note types remain manually mappable rather than
-claimed universally compatible.
+Limits are centralized in `backend/upload_policy.json`: **50 MiB (52,428,800 bytes)**
+per file, 16 KiB upload controls, 12 MiB existing preview/commit/paste controls.
+APKG retains 100 MiB decoded collection DB, 10,000 rows, 64 columns and 20,000
+characters per cell. Only the collection is read/extracted; unused media expansion
+does not count toward processing memory. SQL work has a progress budget. Parser
+subprocesses enforce CPU/memory/time/24 MiB preview limits, one per process.
+Mixed/custom note types remain manually mappable rather than universally compatible.
 
 `FileImport.tsx` owns upload/paste, mapping, destination/create collection,
 duplicate policy, preview, confirmation, 100-row request batches, progress and
@@ -187,6 +208,14 @@ explicit **Enrich selected with AI** action. The original candidate/edit/save fl
 remains. It still uses existing sequential word CRUD rather than the new file
 import persistence contract.
 
+Document capture first uploads a verified temporary object, then uses local
+Poppler for text PDFs (200 pages / 100,000 characters). No FileReader/base64
+document transport remains. Unusable text/images offer a separate explicit AI
+action, limited to 20 MiB/100 pages. Transfer progress, cancel and retry share the
+upload helper. AI provider upload occurs only after consent; normal PDF extraction
+does not import/analyze vocabulary. Temporary input is deleted after success or
+expires; one-day GCS lifecycle is a required operator configuration.
+
 **As-Is — Implemented:** Step 1's **Save for Reading & Typing** stores full text
 without AI. The practice library also stores pasted articles. Deterministic
 user/content article UUIDs make lost-response retries safe in `imported_text`.
@@ -197,6 +226,11 @@ automatically save a full article; the save action is explicit.
 
 **As-Is — Implemented:** `services/dictionary_service.py` queries a local read-only
 SQLite index; this is a derived dictionary file, not another user-data store.
+`dictionary.lock.json` pins release `2026-11-01.1` (English 770,611 / German 371,793).
+Build-time verified GCS artifact delivery installs the immutable SQLite/manifest in
+the image, with no startup download or RAM reconstruction. Public readiness checks
+both language/form indexes and metadata; full hash/count/integrity checks run in
+the build. The release was packaged and tested locally, **not yet published**.
 Priority is cached result → exact installed entry → dataset lemma/forms → verified
 English suffix candidates → clear local miss. Phrases use the same installed
 entries. Query paths perform no network downloads/model calls.
@@ -295,6 +329,10 @@ launch commands without editing existing secrets.
 - [ADR 002: dictionary source/cache](adr/002-local-dictionary.md)
 - [ADR 003: article/typing ownership](adr/003-article-and-typing-persistence.md)
 - [ADR 004: safe import retries](adr/004-import-retry-and-relationships.md)
+- [ADR 005: build-time dictionary artifact](adr/005-build-time-dictionary-artifact.md)
+- [ADR 006: direct upload and local PDF](adr/006-direct-upload-and-local-pdf.md)
+- [Production upgrade runbook](PRODUCTION-UPGRADE.md): GCS/IAM/CORS/lifecycle,
+  clean builds, Cloud Run prerequisites, budgets and costs.
 - Existing `docs/PRD.md`, `docs/architecture/Plan.md`, `docs/DEV_STATUS.md` are
   historical/product context, not competing current architecture references.
 - [Master PRD](https://app.notion.com/p/40b5f33c39bb81baa3a9cb68804d4835)

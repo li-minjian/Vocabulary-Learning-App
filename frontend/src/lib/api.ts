@@ -12,12 +12,12 @@ function getApiBaseUrl() {
   return API_BASE_URL || 'http://127.0.0.1:5001';
 }
 
-function buildApiUrl(path: string) {
+export function buildApiUrl(path: string) {
   const baseUrl = getApiBaseUrl();
   return `${baseUrl.replace(/\/$/, '')}${path}`;
 }
 
-async function getFreshToken(): Promise<string | null> {
+export async function getFreshToken(): Promise<string | null> {
   if (!supabase) {
     return null;
   }
@@ -47,6 +47,10 @@ async function getFreshToken(): Promise<string | null> {
   }
 
   return session.access_token;
+}
+
+export class ApiError extends Error {
+  constructor(message: string, public status: number) { super(message); }
 }
 
 export async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
@@ -88,7 +92,7 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `Backend request failed with ${response.status}`);
+    throw new ApiError(errorData.message || `Backend request failed with ${response.status}`, response.status);
   }
 
   return response.json() as Promise<T>;
@@ -134,14 +138,6 @@ export async function analyzeText(text: string, language: string = 'English', le
     body: JSON.stringify({ text, language, level, goal, count, native_language: nativeLanguage }),
   });
   return res.candidates;
-}
-
-export async function extractTextFromFile(fileData: string, mimeType: string): Promise<string> {
-  const res = await fetchApi<{ text: string }>('/api/import/extract-text', {
-    method: 'POST',
-    body: JSON.stringify({ fileData, mimeType }),
-  });
-  return res.text;
 }
 
 export async function checkTypo(text: string, typed_word: string): Promise<{ is_typo: boolean, corrected_word: string | null, not_found: boolean }> {

@@ -86,3 +86,7 @@ class AuthGateTests(unittest.TestCase):
             method = client.post if path.endswith('/parse') else client.get
             self.assertEqual(method(path).status_code, 401)
         self.assertEqual(client.get('/api/health').status_code, 200)
+        for path in ('/api/uploads', '/api/uploads/'+'a'*32+'.csv/process'):
+            self.assertEqual(client.post(path, json={}).status_code, 401)
+        self.assertEqual(client.put('/api/uploads/'+'a'*32+'.csv/content', data=b'word').status_code, 401)
+        self.assertEqual(client.delete('/api/uploads/'+'a'*32+'.csv').status_code, 401)

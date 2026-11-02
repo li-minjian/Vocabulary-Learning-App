@@ -1,0 +1,6 @@
+{
+  "title": "VOCA upload policy signer",
+  "description": "Bind to the dedicated signing service account only; no token creation or impersonation permission.",
+  "stage": "GA",
+  "includedPermissions": ["iam.serviceAccounts.signBlob"]
+}

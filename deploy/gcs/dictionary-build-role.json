@@ -1,0 +1,6 @@
+{
+  "title": "VOCA pinned dictionary reader",
+  "description": "Bind to the artifact bucket with an object-name condition restricting approved dictionary versions.",
+  "stage": "GA",
+  "includedPermissions": ["storage.objects.get"]
+}

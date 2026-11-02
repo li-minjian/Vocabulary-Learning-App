@@ -162,7 +162,13 @@ class ParserTests(unittest.TestCase):
                 with self.assertRaises(ImportValidationError):
                     parse_file(data, name)
         with self.assertRaises(ImportValidationError):
-            parse_file(b'x' * (10 * 1024 * 1024 + 1), 'words.csv')
+            parse_file(b'x' * (50 * 1024 * 1024 + 1), 'words.csv')
+
+    def test_apkg_database_budget_before_and_after_zstd_expansion(self):
+        for compressed, modern in [(False, False), (True, True)]:
+            with self.subTest(compressed=compressed), patch('services.file_parser.MAX_DATABASE_BYTES', 4096):
+                with self.assertRaisesRegex(ImportValidationError, '100 MiB|database'):
+                    parse_file(apkg(compressed=compressed, modern=modern), 'bounded.apkg')
 
     def test_reject_archive_traversal(self):
         buffer = io.BytesIO()

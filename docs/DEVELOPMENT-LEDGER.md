@@ -110,3 +110,79 @@ where tools/evidence cannot establish them.
 Implementation checkpoint: pending Git commit/push after reviewed staged diff.
 Final QA/Figma/Notion checkpoint: pending. Commit IDs are recorded by the final
 follow-up documentation checkpoint, rather than embedding a commit's own hash.
+
+## 2026-11-02 — Pinned dictionary and 50 MiB upload milestone
+
+Focused scope: dictionary delivery, direct uploads, PDF extraction, APKG budgets,
+tests and deployment documentation. No Figma, mobile, typing redesign, Notion,
+production deployment, IAM/resource changes, schema/RLS or environment-file edits.
+Earlier uncommitted Figma/QA files remain separate and are not part of this milestone.
+
+Implemented:
+
+- `backend/dictionary.lock.json`, artifact package/install verifier, pinned Linux
+  Docker build, non-root read-only runtime and public safe dictionary readiness.
+  Release `2026-11-01.1`: 770,611 English / 371,793 German, SQLite 642,834,432 bytes,
+  compressed artifact 79,029,124 bytes, SHA-256
+  `760f954052a785fe5b19295ff89ea0041dd2f3dbea49d3ce9f884b411296bfc1`.
+  **Packaged locally; not cloud-published.** Existing sources were not refreshed.
+- Shared exact 52,428,800-byte policy; authenticated small init/process controls,
+  private signed direct-GCS POST, per-user keys, actual metadata/type/generation
+  verification, processing leases, retry receipts and cancellation/cleanup.
+  Development-only filesystem transport refuses Cloud Run and verifies SHA-256
+  bytes; Docker testing exposed coarse temp-file timestamps, which were replaced.
+- Bounded Poppler PDF extraction without AI; explicit scan/image AI action within
+  20 MiB/100 pages. Retired base64 endpoint returns 410. APKG retains 100 MiB DB
+  and row/cell/SQL budgets, bounds zstd expansion and never reads unused media.
+- GCS privacy/IAM/CORS/lifecycle templates, [runbook](PRODUCTION-UPGRADE.md),
+  [ADR 005](adr/005-build-time-dictionary-artifact.md) and
+  [ADR 006](adr/006-direct-upload-and-local-pdf.md).
+
+Verification executed:
+
+- **58 Python unit/API tests passed** locally; updated upload subset **17 passed**
+  after the filesystem version-check fix. Full **58 passed inside the final
+  linux/amd64 Docker image**, network disabled, UID 10001, read-only root,
+  1 CPU / 1 GiB and 300 MiB temporary filesystem.
+- Actual synthetic **10/31/49/50 MiB CSV transfer and parse**, exact 50 MiB PDF
+  extraction and exact 50 MiB APKG with unused media passed. Tests reject empty,
+  +1 byte, spoofed content/MIME, wrong-user/workflow, expired/interrupted/substituted
+  objects, concurrent processing, invalid artifacts and parser resource overruns.
+- **10 Chrome browser E2E tests passed**: existing six regressions plus mobile
+  exact-size selection, actual Flask/Poppler text-PDF save, explicit scan consent,
+  and mocked GCS direct transport without Supabase JWT plus processing-only retry.
+  Auth/storage remain isolated doubles; no live account/model calls were made.
+- TypeScript, Vite production build and **7 frontend engine tests passed**.
+  Existing bundle-size/dynamic-import warnings remain; no unrelated optimization.
+- Fresh offline containers queried full installed `hello`/English and `Häuser`/German,
+  returned a normal miss, rejected SQLite writes, and reported version/counts safely.
+  Actual Gunicorn readiness returned 200; protected upload/dictionary returned 401.
+  No source CSV or build credential file exists in the image. Deliberately invalid
+  artifact Docker build failed with `Dictionary artifact SHA-256/size mismatch`.
+- Final local image: `voca:dictionary-50mib-amd64`, OCI index digest
+  `sha256:174032b787aed71f9435bb5844ff316309061f7f3d74e8c7fb46cdc70d8ea719`.
+  One offline app-import/readiness/query sample took 0.77s with about 121 MiB max
+  Python RSS; idle Gunicorn measured about 113 MiB. These are local Docker
+  observations, not Cloud Run cold-start or peak production memory guarantees.
+
+Agent Orchestra evidence: `agent-task-router` classified a bounded read-only Docker
+reproducibility audit as FLASH_ELIGIBLE / FLASH_MEDIUM. The actual installed
+`antigravity-worker/scripts/invoke-antigravity-worker.sh -TaskSpecJson ...` adapter
+was invoked and returned **COMMAND_UNAVAILABLE, exit 2**: “PowerShell 7.4+ is
+required. Install pwsh or set ANTIGRAVITY_PWSH to its absolute path.” `agy` is
+installed but `pwsh` is absent. Flash did **not** run. Codex completed verification;
+no unrelated CLI installation/troubleshooting was performed.
+
+Cloud status: **Not cloud-verified; requires infrastructure approval.** Read-only
+inspection found `voca-497321/europe-west1/vocabulary-learning-app`: 1 CPU,
+512 MiB, concurrency 80, timeout 300s. No resource setting was changed. Approvals
+needed: dedicated private artifact/upload buckets, narrow IAM and signing API,
+publish pinned artifact, approved-origin CORS/lifecycle, runtime upload settings,
+image push/deployment and dedicated-account live cloud verification. Exact
+templates/commands and suggested 1 GiB/concurrency 8 headroom are in the runbook.
+
+GitHub state correction: PR #5 was already merged externally on 2026-11-01 at
+23:14:48Z (`368d3fa63861391eac278c84ca39fdcdaffc68d8`); it is not a current draft.
+The existing `codex/voca-platform-upgrade` branch is retained. New commits require
+a follow-up draft PR; #5 receives a clearly labeled follow-up link rather than
+claiming the new changes were included in its historical merge.

@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from services.ai_service import analyze_text_for_words, extract_text_from_file, check_typo
+from services.ai_service import analyze_text_for_words, check_typo
 
 import_bp = Blueprint('import_text', __name__)
 
@@ -32,22 +32,7 @@ def analyze():
 
 @import_bp.route('/extract-text', methods=['POST'])
 def extract_text():
-    data = request.json
-    file_data = data.get('fileData')
-    mime_type = data.get('mimeType')
-    
-    if not file_data or not mime_type:
-        return jsonify({"message": "File data and mimeType are required"}), 400
-        
-    try:
-        text = extract_text_from_file(file_data, mime_type)
-        return jsonify({"text": text}), 200
-    except Exception as e:
-        if is_quota_error(e):
-            return jsonify({
-                "message": "AI document extraction is temporarily unavailable. Please try again later."
-            }), 429
-        return jsonify({"message": "AI service is temporarily unavailable. Please try again later."}), 500
+    return jsonify({'message': 'Base64 document uploads are no longer supported. Use authorized object upload and explicit extraction.'}), 410
 
 @import_bp.route('/check-typo', methods=['POST'])
 def verify_typo():

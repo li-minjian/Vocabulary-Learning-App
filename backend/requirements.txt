@@ -8,4 +8,5 @@ psycopg2-binary==2.9.9
 gunicorn==23.0.0
 requests==2.32.3
 zstandard==0.25.0
+google-cloud-storage==3.4.1
 
