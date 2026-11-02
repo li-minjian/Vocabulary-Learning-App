@@ -20,7 +20,16 @@ installed dictionary's indexed file format, not as a second application database
 
 ## Install and reproduce
 
-Python standard library only; run from the project root:
+For production image installation, use the pinned artifact process in
+[PRODUCTION-UPGRADE.md](PRODUCTION-UPGRADE.md), not the mutable upstream download
+command below. Release `2026-11-01.1` packages the existing snapshot without an
+upstream refresh. `backend/dictionary.lock.json` records compressed/database hashes,
+lengths, counts and attribution. Build-time installation verifies integrity and
+fails closed; no runtime downloads occur. The artifact is prepared locally but
+**not published to GCS** pending infrastructure approval. Public
+`/api/health/dictionary` reports readiness/version without internal paths.
+
+The source index builder uses Python standard library only; run from project root:
 
 ```bash
 python3 backend/scripts/install_dictionary.py --download
@@ -85,8 +94,13 @@ From `backend` with project Python dependencies installed:
 python -m unittest discover -s tests/unit -p test_dictionary.py -v
 ```
 
-Eight tests cover multiple senses/Unicode/attribution, English irregular and German
+Resolver tests cover multiple senses/Unicode/attribution, English irregular and German
 umlaut forms, exact phrases and longest spans, cache isolation, immutable runtime,
 missing/corrupt installation, API validation, and actual dictionary requests with
 outbound networking blocked and AI provider call counters asserted zero. Root E2E
 verification additionally owns authentication and browser consent interaction evidence.
+`test_dictionary_artifact.py` separately covers deterministic packaging, valid
+installation, bad hash/size/transport, incorrect counts/missing index and safe
+readiness. Offline non-root Docker verification exercises the complete installed
+snapshot, English/German hits, a miss and write rejection. See the development
+ledger for the actual image/evidence and remaining cloud verification boundary.

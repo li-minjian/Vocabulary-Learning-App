@@ -79,7 +79,7 @@ class Query:
 
 class Database:
     def __init__(self):
-        self.tables = {'collections': [{'id': COLLECTION, 'user_id': USER, 'name': 'E2E test collection', 'description': ''}], 'words': [], 'imported_text': []}
+        self.tables = {'collections': [{'id': COLLECTION, 'user_id': USER, 'name': 'E2E test collection', 'description': '', 'created_at': '2026-11-01T12:00:00+00:00'}], 'words': [], 'imported_text': []}
         self.auth = SimpleNamespace(get_user=self.get_user)
 
     def get_user(self, token):

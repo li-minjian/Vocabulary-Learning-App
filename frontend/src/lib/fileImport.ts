@@ -1,4 +1,5 @@
 import { fetchApi } from './api';
+import { processUpload, type UploadProgress } from './uploads';
 
 export interface ParsedList {
   import_id: string;
@@ -42,13 +43,10 @@ export interface RowResult {
 export interface ImportPreview { ready: number; skipped: number; invalid: number; duplicates: number; rows: RowResult[] }
 export interface ImportResult { import_id: string; imported: number; resumed: number; skipped: number; invalid: number; failed: number; rows: RowResult[] }
 
-export async function parseList(file: File | null, text: string, delimiter: string, header: string): Promise<ParsedList> {
+export async function parseList(file: File | null, text: string, delimiter: string, header: string, options?: { signal?: AbortSignal; onProgress?: (value: UploadProgress) => void }): Promise<ParsedList> {
   if (file) {
-    const body = new FormData();
-    body.append('file', file);
-    if (delimiter) body.append('delimiter', delimiter);
-    body.append('has_header', header);
-    return fetchApi<ParsedList>('/api/file-import/parse', { method: 'POST', body });
+    return processUpload<ParsedList>(file, 'file', { ...options, delimiter: delimiter || undefined,
+      has_header: header === 'auto' ? undefined : header === 'true' });
   }
   return fetchApi<ParsedList>('/api/file-import/parse', {
     method: 'POST', body: JSON.stringify({ text, filename: 'pasted-list.txt', delimiter: delimiter || undefined,

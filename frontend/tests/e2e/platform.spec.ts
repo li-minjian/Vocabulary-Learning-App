@@ -33,6 +33,8 @@ test('file import upload, mapping, collection, duplicate skip and zero AI', asyn
   await page.screenshot({ path: 'test-results/file-import-mapping-desktop.png', fullPage: true, animations: 'disabled' });
   await page.getByRole('button', { name: 'Check duplicates & preview' }).click();
   await expect(page.getByText('2 ready · 1 duplicates skipped · 1 invalid rows')).toBeVisible();
+  await page.evaluate(() => scrollTo(0, 0));
+  await page.screenshot({ path: 'test-results/file-import-confirm-desktop.png', fullPage: true, animations: 'disabled' });
   await page.getByRole('button', { name: 'Confirm import', exact: true }).click();
   await expect(page.getByText('2 imported · 0 recovered / already saved · 1 skipped · 1 invalid · 0 failed')).toBeVisible();
   expect(aiRequests).toBe(0);

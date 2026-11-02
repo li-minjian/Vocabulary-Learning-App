@@ -1,0 +1,35 @@
+{
+  "installed_at": "2026-11-01T22:35:22.249334+00:00",
+  "sources": {
+    "ECDICT": {
+      "name": "ECDICT",
+      "url": "https://github.com/skywind3000/ECDICT",
+      "license": "MIT (upstream repository)",
+      "license_url": "https://github.com/skywind3000/ECDICT/blob/master/LICENSE",
+      "download_url": "https://raw.githubusercontent.com/skywind3000/ECDICT/master/ecdict.csv",
+      "sha256": "d1ecbdf9ee2b920afb6f430ca6b6bb9f559588cf0dff86e04bd255f9390843cc",
+      "records": 770611
+    },
+    "Kaikki / Wiktionary": {
+      "name": "Kaikki / Wiktionary",
+      "url": "https://kaikki.org/dictionary/German/",
+      "license": "CC BY-SA 4.0 / GFDL",
+      "license_url": "https://en.wiktionary.org/wiki/Wiktionary:Copyrights",
+      "download_url": "https://kaikki.org/dictionary/German/kaikki.org-dictionary-German.jsonl.gz",
+      "sha256": "e16ea346863a1d0bc9e0533f83015b3847ec8b0a065ad2620b76a19bb005b520",
+      "records": 371793
+    }
+  },
+  "database_sha256": "893f501a96e431386a3025d74629feffff477d5ca44c439d2668ff96b99a031c",
+  "counts": {
+    "ECDICT": 770611,
+    "Kaikki / Wiktionary": 371793
+  },
+  "version": "2026-11-01.1",
+  "format": "voca-dictionary-sqlite-zstd-v1",
+  "database_bytes": 642834432,
+  "artifact_filename": "voca-dictionary-2026-11-01.1.sqlite3.zst",
+  "distribution": "Private GCS immutable versioned object; publication requires infrastructure approval.",
+  "artifact_sha256": "760f954052a785fe5b19295ff89ea0041dd2f3dbea49d3ce9f884b411296bfc1",
+  "artifact_bytes": 79029124
+}

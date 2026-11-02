@@ -29,13 +29,31 @@ A fresh clone installs dependencies and dictionaries:
 
 ```bash
 python3.12 -m venv backend/.venv
-backend/.venv/bin/python -m pip install -r backend/requirements.txt
+backend/.venv/bin/python -m pip install -r backend/requirements.lock
 npm --prefix frontend ci
 python3 backend/scripts/install_dictionary.py --download
 ```
 
 Use an existing configuration root or approved local config. Do not copy secrets
 into source or VITE-prefixed test-password variables. No personal JWT is needed.
+
+File/PDF upload defaults to private local temporary storage outside Cloud Run.
+This fallback accepts exactly 50 MiB and is authenticated; `K_SERVICE` forbids it
+in production. Production requires the private direct-GCS provider. Local temporary
+files live under the OS temp directory and should be cleared after the dev session;
+production retention uses the configured one-day lifecycle. Successful extraction
+deletes input immediately; retry receipts and scan inputs last up to one hour.
+
+Local PDF extraction needs `pdfinfo` and `pdftotext` on PATH (Poppler). On macOS,
+install Poppler through the normal approved package workflow if absent. No Python
+PDF library or AI key is needed for text PDFs. Scans/images offer explicit AI only.
+The old base64 `/api/import/extract-text` endpoint is retired (410).
+
+Check [dictionary readiness](http://127.0.0.1:5001/api/health/dictionary).
+The repository lock matches this session's existing dictionary snapshot. A fresh
+source download can differ; use the approved artifact for exact reproducibility.
+See [production runbook](PRODUCTION-UPGRADE.md) for a clean Docker build using the
+artifact without local source datasets, and approval-gated cloud configuration.
 
 Automated isolated verification:
 

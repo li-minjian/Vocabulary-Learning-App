@@ -16,6 +16,7 @@ from routes.export import export_bp
 from routes.articles import articles_bp
 from routes.file_import import file_import_bp
 from routes.dictionary import dictionary_bp
+from routes.uploads import uploads_bp
 print("[APP_VERSION] supabase-config-diag-v2", flush=True)
 
 def create_app() -> Flask:
@@ -38,6 +39,12 @@ def create_app() -> Flask:
                 "service": "flask-vocabulary-service",
             }
         )
+
+    @app.get('/api/health/dictionary')
+    def dictionary_readiness():
+        from services.dictionary_health import dictionary_health
+        result = dictionary_health()
+        return jsonify(result), 200 if result['ready'] else 503
 
     @app.before_request
     def authenticate():
@@ -169,6 +176,7 @@ def create_app() -> Flask:
     app.register_blueprint(articles_bp, url_prefix='/api/articles')
     app.register_blueprint(file_import_bp, url_prefix='/api/file-import')
     app.register_blueprint(dictionary_bp, url_prefix='/api/dictionary')
+    app.register_blueprint(uploads_bp, url_prefix='/api/uploads')
 
     return app
 

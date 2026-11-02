@@ -2,13 +2,14 @@
 from copy import deepcopy
 from contextlib import closing
 from functools import lru_cache
+import os
 import json
 from pathlib import Path
 import re
 import sqlite3
 import unicodedata
 
-DEFAULT_DATABASE = Path(__file__).resolve().parents[1] / "data/dictionary/dictionary.sqlite3"
+DEFAULT_DATABASE = Path(os.getenv('DICTIONARY_PATH') or Path(__file__).resolve().parents[1] / "data/dictionary/dictionary.sqlite3")
 LANGUAGES = {"english": "English", "en": "English", "german": "German", "de": "German"}
 
 

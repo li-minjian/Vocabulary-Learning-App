@@ -1,0 +1,9 @@
+{
+  "max_file_bytes": 52428800,
+  "max_control_bytes": 12582912,
+  "authorization_seconds": 600,
+  "processing_seconds": 3600,
+  "max_result_bytes": 25165824,
+  "file_extensions": ["csv", "tsv", "txt", "apkg"],
+  "article_extensions": ["pdf", "png", "jpg", "jpeg"]
+}

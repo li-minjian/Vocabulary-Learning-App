@@ -9,8 +9,8 @@ import tempfile
 import zipfile
 from html.parser import HTMLParser
 from pathlib import PurePosixPath
+from services.upload_policy import MAX_FILE_BYTES
 
-MAX_FILE_BYTES = 10 * 1024 * 1024
 MAX_DATABASE_BYTES = 100 * 1024 * 1024
 MAX_ROWS = 10000
 MAX_COLUMNS = 64
@@ -71,7 +71,7 @@ def parse_file(data, filename, delimiter=None, has_header=None):
     if not isinstance(data, bytes) or not data:
         raise ImportValidationError('Choose a non-empty file.')
     if len(data) > MAX_FILE_BYTES:
-        raise ImportValidationError('File size exceeds 10 MiB.')
+        raise ImportValidationError('File size exceeds 50 MiB (52,428,800 bytes).')
     digest = hashlib.sha256(data).hexdigest()
     suffix = PurePosixPath(filename.lower()).suffix
     if suffix == '.apkg':
@@ -153,16 +153,14 @@ def _parse_apkg(data, digest):
         entries = archive.infolist()
         if len(entries) > 20000:
             raise ImportValidationError('Archive contains too many entries.')
-        total = 0
         for entry in entries:
             path = PurePosixPath(entry.filename.replace('\\', '/'))
             if path.is_absolute() or '..' in path.parts or re.match(r'^[A-Za-z]:', entry.filename):
                 raise ImportValidationError('Unsafe archive path detected.')
             if entry.flag_bits & 1:
                 raise ImportValidationError('Encrypted APKG archives are unsupported.')
-            total += entry.file_size
-            if total > 250 * 1024 * 1024:
-                raise ImportValidationError('Archive expands beyond the supported size.')
+            # Media is never opened/extracted. Its declared expansion cannot consume
+            # processing memory; the one database we actually read is bounded below.
         names = {entry.filename for entry in entries}
         db_name = next((name for name in ('collection.anki21b', 'collection.anki21', 'collection.anki2') if name in names), None)
         if not db_name:
@@ -177,7 +175,10 @@ def _parse_apkg(data, digest):
             except ImportError as exc:
                 raise ImportValidationError('This modern APKG needs zstandard support on the server. Export from Anki with “Support older Anki versions” or use Anki TXT.') from exc
             try:
-                db_data = zstandard.ZstdDecompressor().decompress(db_data, max_output_size=MAX_DATABASE_BYTES)
+                with zstandard.ZstdDecompressor().stream_reader(io.BytesIO(db_data)) as reader:
+                    db_data = reader.read(MAX_DATABASE_BYTES + 1)
+                if len(db_data) > MAX_DATABASE_BYTES:
+                    raise ImportValidationError('Anki database expands beyond 100 MiB. Split the deck.')
             except zstandard.ZstdError as exc:
                 raise ImportValidationError('Unable to read compressed Anki database; export with older-version support.') from exc
         if not db_data.startswith(b'SQLite format 3\x00'):
@@ -207,11 +208,15 @@ def _parse_apkg(data, digest):
                             decks = json.loads(col[1] or '{}')
                         except (ValueError, TypeError):
                             warnings.append('Anki model metadata could not be read; generic field names are used.')
+                if not isinstance(models, dict) or not isinstance(decks, dict):
+                    raise ImportValidationError('Unsupported Anki model/deck metadata. Export as Anki TXT instead.')
                 if not models and 'fields' in tables:
                     for ntid, order, name in conn.execute('SELECT ntid, ord, name FROM fields ORDER BY ntid, ord LIMIT 64000'):
                         models.setdefault(str(ntid), {'flds': []})['flds'].append({'name': name, 'ord': order})
                 if not decks and 'decks' in tables:
                     decks = {str(row[0]): {'name': row[1]} for row in conn.execute('SELECT id, name FROM decks LIMIT 10000')}
+                if any(not isinstance(deck, dict) for deck in decks.values()):
+                    raise ImportValidationError('Unsupported Anki deck metadata. Export as Anki TXT instead.')
                 note_decks = {}
                 if 'cards' in tables:
                     for nid, did in conn.execute('SELECT nid, MIN(did) FROM cards GROUP BY nid LIMIT 10001'):
@@ -223,7 +228,11 @@ def _parse_apkg(data, digest):
                 for nid, mid, fields, tags in notes:
                     values = str(fields).split('\x1f')
                     model = models.get(str(mid), {})
+                    if not isinstance(model, dict) or not isinstance(model.get('flds', []), list) or any(not isinstance(field, dict) for field in model.get('flds', [])):
+                        raise ImportValidationError('Unsupported Anki field metadata. Export as Anki TXT instead.')
                     field_names = [field.get('name', f'Field {i + 1}') for i, field in enumerate(model.get('flds', []))]
+                    if any(not isinstance(name, str) or len(name) > MAX_CELL for name in field_names):
+                        raise ImportValidationError('Unsupported Anki column names.')
                     if len(field_names) != len(values):
                         field_names = [f'Field {i + 1}' for i in range(len(values))]
                     record = dict(zip(field_names, map(plain_text, values)))
@@ -231,6 +240,8 @@ def _parse_apkg(data, digest):
                     record['Source deck'] = note_decks.get(str(nid), '')
                     for name in record:
                         if name not in columns:
+                            if len(columns) >= MAX_COLUMNS:
+                                raise ImportValidationError(f'At most {MAX_COLUMNS} distinct Anki columns are supported.')
                             columns.append(name)
                     records.append(record)
                 if not records:

@@ -1,0 +1,12 @@
+{
+  "title": "VOCA private temporary uploads",
+  "description": "Bind only to the dedicated VOCA upload bucket; no bucket administration or public access.",
+  "stage": "GA",
+  "includedPermissions": [
+    "storage.buckets.get",
+    "storage.objects.create",
+    "storage.objects.get",
+    "storage.objects.update",
+    "storage.objects.delete"
+  ]
+}

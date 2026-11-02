@@ -1,7 +1,8 @@
 import { ArrowLeft, ArrowRight, FileText, Loader2, UploadCloud, Settings2 } from 'lucide-react';
 import { useNavigate } from "react-router";
-import { useState, useRef } from 'react';
-import { analyzeText, extractTextFromFile } from '../../lib/api';
+import { useState, useRef, useEffect } from 'react';
+import { analyzeText } from '../../lib/api';
+import { processUpload, validateFile, cancelUpload, type DocumentExtraction, type UploadProgress } from '../../lib/uploads';
 import { saveArticle } from '../../lib/articles';
 import { SelectField, type SelectOption } from '../components/ui/SelectField';
 
@@ -21,6 +22,13 @@ export function ImportStep1() {
   const [isSavingArticle, setIsSavingArticle] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentResult, setDocumentResult] = useState<DocumentExtraction | null>(null);
+  const [documentError, setDocumentError] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const documentController = useRef<AbortController | null>(null);
+  const appliedDocuments = useRef(new WeakSet<File>());
+  useEffect(() => () => documentController.current?.abort(), []);
   
   const languageOptions: SelectOption[] = [
     { value: 'German', label: 'German' },
@@ -82,32 +90,28 @@ export function ImportStep1() {
     }
   };
 
+  const extractDocument = async (file: File, method: 'local' | 'ai' = 'local') => {
+    setDocumentError('');
+    try { validateFile(file, 'article'); } catch (cause) { setDocumentError(cause instanceof Error ? cause.message : 'Invalid file.'); return; }
+    setDocumentFile(file);
+    if (file !== documentFile) setDocumentResult(null);
+    setIsExtracting(true);
+    documentController.current = new AbortController();
+    try {
+      const result = await processUpload<DocumentExtraction>(file, 'article', { method, signal: documentController.current.signal, onProgress: setUploadProgress });
+      setDocumentResult(result);
+      if (result.text && !appliedDocuments.current.has(file)) {
+        setText(previous => previous ? previous + '\n\n' + result.text : result.text);
+        appliedDocuments.current.add(file);
+        setTitle(previous => previous || file.name.replace(/\.[^.]+$/, ''));
+      }
+    } catch (cause) { setDocumentError(cause instanceof DOMException && cause.name === 'AbortError' ? 'Upload cancelled. You can retry.' : cause instanceof Error ? cause.message : 'Document extraction failed.'); }
+    finally { setIsExtracting(false); setUploadProgress(null); }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsExtracting(true);
-    setError(null);
-    try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64String = (reader.result as string).split(',')[1];
-        try {
-          const extractedText = await extractTextFromFile(base64String, file.type);
-          setText(prev => prev ? prev + '\n\n' + extractedText : extractedText);
-          if (!title) setTitle(file.name.split('.')[0]);
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'Failed to extract text from file');
-        } finally {
-          setIsExtracting(false);
-        }
-      };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to read file');
-      setIsExtracting(false);
-    }
-    // reset input
+    if (file) await extractDocument(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -139,6 +143,13 @@ export function ImportStep1() {
           {error}
         </div>
       )}
+      {(uploadProgress || documentResult || documentError) && <section className="space-y-3 rounded-xl border border-border bg-white p-4 text-sm" aria-label="Document upload">
+        {uploadProgress && <div role="status"><p>{uploadProgress.stage === 'processing' ? 'Verifying and extracting document…' : `${uploadProgress.stage} ${uploadProgress.percent}%`}</p><progress className="w-full" max={100} value={uploadProgress.percent} /><button type="button" className="underline" onClick={() => { documentController.current?.abort(); if (documentFile) void cancelUpload(documentFile).catch(() => {}); }}>Cancel upload</button></div>}
+        {documentError && <div role="alert" className="text-rose-700">{documentError}{documentFile && <button type="button" disabled={isExtracting} className="ml-3 underline" onClick={() => extractDocument(documentFile)}>Retry document upload</button>}</div>}
+        {documentResult?.warnings?.map((warning, index) => <p key={index}>{warning}</p>)}
+        {documentResult?.needs_ocr && <><p>No usable text was extracted locally. AI extraction requires a separate explicit action.</p>{documentResult.ai_allowed && documentFile ? <button type="button" disabled={isExtracting} className="rounded-xl border border-border px-4 py-2 font-semibold" onClick={() => extractDocument(documentFile, 'ai')}>Ask AI to extract this document</button> : <p>OCR the document locally or split it first. AI extraction is limited to 20 MiB and 100 pages.</p>}<p className="text-xs text-muted-foreground">Ask AI uploads this document to the configured AI provider. Temporary uploads expire automatically.</p></>}
+        {documentResult?.text && <p role="status">Document text extracted. Review it below, then save for Reading &amp; Typing or explicitly analyze with AI.</p>}
+      </section>}
 
       {/* Main Input Form Card */}
       <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-6">
@@ -213,13 +224,14 @@ export function ImportStep1() {
               type="button"
             >
               {isExtracting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5 text-primary" strokeWidth={2} />}
-              <span>{isExtracting ? 'Extracting text...' : 'Upload File (Image / PDF) (Beta)'}</span>
+              <span>{isExtracting ? 'Processing document…' : 'Upload PDF / Image (up to 50 MiB)'}</span>
             </button>
             <input 
               type="file" 
               ref={fileInputRef} 
               onChange={handleFileUpload}
-              accept="image/*,application/pdf" 
+              accept=".pdf,.png,.jpg,.jpeg"
+              aria-label="PDF or image document"
               className="hidden" 
             />
           </div>

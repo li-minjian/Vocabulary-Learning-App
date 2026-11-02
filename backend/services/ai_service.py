@@ -203,21 +203,33 @@ def analyze_text_for_words(text: str, target_language: str = "English", level: s
         print(f"Failed to parse AI response: {text_res}")
         raise Exception("Failed to parse AI response into JSON")
 
-def extract_text_from_file(base64_data: str, mime_type: str) -> str:
+def extract_uploaded_document(path, mime_type: str) -> str:
+    """Only called after explicit consent; provider file removed after extraction."""
     if not is_ai_ready:
-        raise Exception("AI service not configured")
-        
-    model = genai.GenerativeModel(Config.GEMINI_MODEL)
-    
+        raise Exception('AI service not configured')
+    uploaded = None
     try:
-        response = model.generate_content([
-            {'mime_type': mime_type, 'data': base64_data},
-            "Please extract all the text from this document accurately. Preserve the original language and formatting as much as possible."
-        ])
+        uploaded = genai.upload_file(path=str(path), mime_type=mime_type)
+        import time
+        deadline = time.monotonic() + 30
+        while getattr(getattr(uploaded, 'state', None), 'name', '') == 'PROCESSING':
+            if time.monotonic() >= deadline:
+                raise TimeoutError('Provider document processing timed out')
+            time.sleep(1)
+            uploaded = genai.get_file(uploaded.name)
+        if getattr(getattr(uploaded, 'state', None), 'name', '') == 'FAILED':
+            raise ValueError('Provider rejected document')
+        response = genai.GenerativeModel(Config.GEMINI_MODEL).generate_content([
+            uploaded, 'Extract the document text accurately in its original language, preserving paragraphs.'],
+            request_options={'timeout': 60, 'retry': None})
         return response.text.strip()
-    except Exception as e:
-        print(f"Failed to extract text from file: {e}")
-        raise Exception("Failed to process file with AI")
+    finally:
+        if uploaded is not None:
+            try:
+                genai.delete_file(uploaded.name)
+            except Exception:
+                print('[DOCUMENT_EXTRACTION] provider cleanup could not be confirmed', flush=True)
+
 
 def check_typo(text: str, typed_word: str) -> dict:
     if not is_ai_ready:
