@@ -1,3 +1,4 @@
+import { useVocabularyVersion } from '../hooks/useVocabularyVersion';
 import { RotateCcw, TrendingUp, Clock, Calendar, Loader2, BookOpen, Layers, Settings, Check, HelpCircle } from 'lucide-react';
 import { useNavigate } from "react-router";
 import { useState, useEffect } from 'react';
@@ -5,6 +6,7 @@ import { fetchReviewQueue, fetchCollections, type VocabularyWord, type Collectio
 import { SelectField, type SelectOption } from '../components/ui/SelectField';
 
 export function ReviewHub() {
+  const vocabularyVersion = useVocabularyVersion();
   const navigate = useNavigate();
   const [dueCount, setDueCount] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,7 +47,7 @@ export function ReviewHub() {
       })
       .catch(console.error)
       .finally(() => setIsLoading(false));
-  }, [collectionId]);
+  }, [collectionId, vocabularyVersion]);
 
   const handleToggleMode = (mode: 'flashcard' | 'multipleChoice' | 'spelling') => {
     setSelectedModes(prev => {

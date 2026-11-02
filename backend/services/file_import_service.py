@@ -99,6 +99,8 @@ def prepare_import(client, user_id, payload):
         if not target:
             raise ImportValidationError('Destination collection is unavailable or belongs to another user.')
     prepared, errors = _prepare_rows(rows, language)
+    if payload.get('allow_numeric') is not True and any(re.fullmatch(r'[+-]?(?:\d+(?:[.,]\d+)?|\.\d+)', row['word']) for row in prepared):
+        raise ImportValidationError('Word values contain numbers. Confirm numerical vocabulary explicitly after checking the mapping.')
     existing = list_user_words(client, user_id, 'id,word,language')
     existing_ids = {str(item['id']) for item in existing}
     known = {(normalized_word(str(item.get('language') or '')), normalized_word(item.get('word', ''))): item['id'] for item in existing}
@@ -111,7 +113,7 @@ def prepare_import(client, user_id, payload):
         # Own UUIDs represent a prior interrupted attempt and must repair relations.
         row['resuming'] = row['id'] in existing_ids
         if not row['resuming'] and conflict == 'skip' and (key in known or key in seen):
-            skipped.append({'row': row['row'], 'status': 'skipped', 'word': row['word'], 'message': 'Duplicate word and language; existing vocabulary and review history are preserved.'})
+            skipped.append({**row, 'status': 'skipped', 'message': 'Duplicate word and language; existing vocabulary and review history are preserved.'})
         else:
             row['duplicate'] = key in known or key in seen
             candidates.append(row)
@@ -168,14 +170,19 @@ def commit_import(client, user_id, payload):
             # Never retry an uncertain network write with new IDs. Reconcile below.
             pass
         try:
-            saved = client.table('words').select('id').eq('user_id', user_id).in_('id', [row['id'] for row in batch]).execute().data or []
-            saved_ids = {str(item['id']) for item in saved}
+            saved = client.table('words').select('id,word,translation,definition,pos,source,ipa,language,collection_id').eq('user_id', user_id).in_('id', [row['id'] for row in batch]).execute().data or []
+            saved_by_id = {str(item['id']): item for item in saved}
         except Exception:
-            saved_ids = set()
+            saved_by_id = {}
         for row in batch:
-            if row['id'] not in saved_ids:
+            actual = saved_by_id.get(row['id'])
+            expected = {key: row[key] for key in ('word', 'translation', 'definition', 'pos', 'source', 'language')}
+            expected['collection_id'] = plan['collection_id']
+            if row['ipa']:
+                expected['ipa'] = row['ipa']
+            if actual is None or any((actual.get(key) or None) != (value or None) for key, value in expected.items()):
                 results.append({'row': row['row'], 'word': row['word'], 'status': 'failed',
-                                'message': 'Word persistence was not confirmed. Retry this import with the same import ID.'})
+                                'message': 'Word fields or destination could not be verified. Retry this import with the same import ID.'})
                 continue
             try:
                 _save_relations(client, user_id, row)

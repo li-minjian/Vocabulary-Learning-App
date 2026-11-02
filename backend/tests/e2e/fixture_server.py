@@ -86,6 +86,11 @@ class Database:
         if token != 'fixture-access-token': raise ValueError('Invalid fixture credential')
         return SimpleNamespace(user=SimpleNamespace(id=USER))
 
+    @property
+    def postgrest(self):
+        metadata = {'definitions': {name: {'properties': {'word_id': {'description': "<fk table='words' column='id'/>"}}} for name in ('examples','collocations','synonyms','word_tags')}}
+        return SimpleNamespace(session=SimpleNamespace(get=lambda *args, **kwargs: SimpleNamespace(raise_for_status=lambda: None, json=lambda: metadata)))
+
     def table(self, name): return Query(self, name)
 
 
@@ -95,6 +100,7 @@ def create_fixture_app():
     with patch.object(dotenv, 'load_dotenv'):
         from app import create_app
     import app as app_module
+    import routes.vocabulary_management as management
     import routes.articles as articles
     import routes.file_import as file_import
     import routes.words as words
@@ -104,7 +110,7 @@ def create_fixture_app():
     import routes.stats as stats
     import routes.export as export
     db = Database()
-    app_module.get_supabase = articles.get_supabase = file_import.get_supabase = stats.get_supabase = review.get_supabase = export.get_supabase = lambda: db
+    management.get_supabase = app_module.get_supabase = articles.get_supabase = file_import.get_supabase = stats.get_supabase = review.get_supabase = export.get_supabase = lambda: db
     words.supabase = collections.supabase = tags.supabase = review.supabase = export.supabase = db
     app = create_app()
     app.config['TESTING'] = True

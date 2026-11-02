@@ -127,7 +127,10 @@ def parse_file(data, filename, delimiter=None, has_header=None):
         raise ImportValidationError('No vocabulary rows were found.')
     aliases = {'word', 'term', 'front', 'expression', 'vocabulary', 'translation', 'back', 'definition', 'meaning', 'example', 'examples', 'tags', 'source', 'deck', 'pos', 'language', 'lang', 'collocations', '词语', '单词', '翻译'}
     if has_header is None:
-        has_header = any(cell.lower() in aliases for cell in rows[0])
+        hits = sum(cell.lower() in aliases for cell in rows[0])
+        has_header = hits >= 2
+        if hits and not has_header:
+            warnings.append('First row may contain headers. It was preserved as data; choose headers explicitly if needed.')
         if 'columns' in metadata:
             has_header = False
     if has_header:
@@ -224,6 +227,13 @@ def _parse_apkg(data, digest):
                 notes = conn.execute('SELECT id, mid, flds, tags FROM notes ORDER BY id LIMIT 10001').fetchall()
                 if len(notes) > MAX_ROWS:
                     raise ImportValidationError(f'At most {MAX_ROWS} Anki notes can be imported at once.')
+                all_names = {field.get('name') for model in models.values() if isinstance(model, dict) for field in model.get('flds', []) if isinstance(field, dict)}
+                metadata_names = {}
+                for name in ('Anki tags', 'Source deck'):
+                    candidate = name
+                    while candidate in all_names:
+                        candidate += ' (metadata)'
+                    metadata_names[name] = candidate
                 columns, records = [], []
                 for nid, mid, fields, tags in notes:
                     values = str(fields).split('\x1f')
@@ -235,9 +245,12 @@ def _parse_apkg(data, digest):
                         raise ImportValidationError('Unsupported Anki column names.')
                     if len(field_names) != len(values):
                         field_names = [f'Field {i + 1}' for i in range(len(values))]
+                    if len(set(field_names)) != len(field_names):
+                        field_names = [f'{name} (field {i + 1})' for i, name in enumerate(field_names)]
+                        warnings.append('Repeated Anki field names were disambiguated. Map these columns manually.')
                     record = dict(zip(field_names, map(plain_text, values)))
-                    record['Anki tags'] = plain_text(tags)
-                    record['Source deck'] = note_decks.get(str(nid), '')
+                    record[metadata_names['Anki tags']] = plain_text(tags)
+                    record[metadata_names['Source deck']] = note_decks.get(str(nid), '')
                     for name in record:
                         if name not in columns:
                             if len(columns) >= MAX_COLUMNS:

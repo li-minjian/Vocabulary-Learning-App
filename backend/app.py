@@ -5,6 +5,7 @@ from flask_cors import CORS
 from services.supabase_client import get_supabase
 
 from config import Config
+from routes.vocabulary_management import management_bp
 from routes.words import words_bp
 from routes.collections import collections_bp
 from routes.tags import tags_bp
@@ -165,6 +166,7 @@ def create_app() -> Flask:
             print(f"[AUTH_DIAG] Exception: {str(e)}", flush=True)
             abort(401, f"Authentication error: {str(e)}")
 
+    app.register_blueprint(management_bp, url_prefix='/api/vocabulary-management')
     app.register_blueprint(words_bp, url_prefix='/api/words')
     app.register_blueprint(collections_bp, url_prefix='/api/collections')
     app.register_blueprint(tags_bp, url_prefix='/api/tags')

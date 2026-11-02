@@ -12,22 +12,17 @@ def resolve_collection_id(val, user_id):
     if not val_str:
         return None
         
-    # Check if it's a valid UUID
+    query = supabase.table('collections').select('id').eq('user_id', user_id)
     try:
-        uuid.UUID(val_str)
-        return val_str
+        collection_uuid = str(uuid.UUID(val_str))
     except ValueError:
-        pass
-        
-    # If not a valid UUID, treat it as a collection name and look it up
-    try:
-        res = supabase.table('collections').select('id').eq('name', val_str).eq('user_id', user_id).execute()
-        if res.data:
-            return res.data[0]['id']
-    except Exception:
-        pass
-        
-    return None
+        query = query.eq('name', val_str)
+    else:
+        query = query.eq('id', collection_uuid)
+    result = query.execute().data or []
+    if not result:
+        raise ValueError('Destination collection is unavailable or belongs to another user.')
+    return result[0]['id']
 
 @words_bp.route('', methods=['GET'])
 def list_words():
@@ -48,7 +43,7 @@ def get_word(word_id):
         return jsonify({"message": "Supabase client not initialized"}), 500
         
     try:
-        response = supabase.table('words').select('*, examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))').eq('id', word_id).execute()
+        response = supabase.table('words').select('*, examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))').eq('id', word_id).eq('user_id', g.user_id).execute()
         if not response.data:
             return jsonify({"message": f"Word {word_id} not found"}), 404
         return jsonify(response.data[0])
@@ -110,7 +105,7 @@ def create_word():
             supabase.table('synonyms').insert(rel_inserts).execute()
             
         # Refetch with relations
-        new_word = supabase.table('words').select('*, examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))').eq('id', word_id).execute()
+        new_word = supabase.table('words').select('*, examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))').eq('id', word_id).eq('user_id', g.user_id).execute()
         return jsonify(new_word.data[0]), 201
     except Exception as e:
         return jsonify({"message": str(e)}), 500
@@ -131,7 +126,7 @@ def update_word(word_id):
         if collection_id_raw is not None:
             update_data["collection_id"] = resolve_collection_id(collection_id_raw, g.user_id)
                 
-        response = supabase.table('words').update(update_data).eq('id', word_id).execute()
+        response = supabase.table('words').update(update_data).eq('id', word_id).eq('user_id', g.user_id).execute()
         if not response.data:
             return jsonify({"message": f"Word {word_id} not found"}), 404
         return jsonify(response.data[0])
@@ -143,10 +138,11 @@ def delete_word(word_id):
     if not supabase:
         return jsonify({"message": "Supabase client not initialized"}), 500
         
+    from services.vocabulary_management import BackupStore, ManagementError, batch_delete
     try:
-        response = supabase.table('words').delete().eq('id', word_id).execute()
-        if not response.data:
-            return jsonify({"message": f"Word {word_id} not found"}), 404
-        return jsonify({"message": f"Word {word_id} deleted successfully"})
-    except Exception as e:
-        return jsonify({"message": str(e)}), 500
+        result = batch_delete(supabase, g.user_id, [word_id], BackupStore())
+        return jsonify(result), 200 if result['complete'] else 409
+    except ManagementError as error:
+        return jsonify({'message': str(error)}), error.status
+    except Exception:
+        return jsonify({'message': 'Deletion could not be verified. Refresh before retrying.'}), 503

@@ -9,7 +9,7 @@ def list_collections():
         return jsonify({"message": "Supabase client not initialized"}), 500
         
     try:
-        response = supabase.table('collections').select('*, words(count)').execute()
+        response = supabase.table('collections').select('*, words(count)').eq('user_id', g.user_id).execute()
         items = []
         for col in response.data:
             word_count = 0
@@ -28,22 +28,25 @@ def get_collection(collection_id):
         return jsonify({"message": "Supabase client not initialized"}), 500
         
     try:
-        response = supabase.table('collections').select('*').eq('id', collection_id).execute()
+        response = supabase.table('collections').select('*').eq('id', collection_id).eq('user_id', g.user_id).execute()
         if not response.data:
             return jsonify({"message": f"Collection {collection_id} not found"}), 404
         return jsonify(response.data[0])
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
-@collections_bp.route('/', methods=['POST'])
+@collections_bp.route('', methods=['POST'], strict_slashes=False)
 def create_collection():
     if not supabase:
         return jsonify({"message": "Supabase client not initialized"}), 500
         
-    data = request.json
+    data = request.get_json(silent=True) or {}
+    name = data.get('name')
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > 255:
+        return jsonify({'message': 'Collection name must contain 1–255 characters.'}), 400
     try:
         insert_data = {
-            "name": data.get("name"),
+            "name": name.strip(),
             "description": data.get("description", ""),
             "user_id": g.user_id
         }
@@ -65,7 +68,7 @@ def update_collection(collection_id):
             if key in data:
                 update_data[key] = data[key]
                 
-        response = supabase.table('collections').update(update_data).eq('id', collection_id).execute()
+        response = supabase.table('collections').update(update_data).eq('id', collection_id).eq('user_id', g.user_id).execute()
         if not response.data:
             return jsonify({"message": f"Collection {collection_id} not found"}), 404
         return jsonify(response.data[0])
@@ -78,7 +81,7 @@ def delete_collection(collection_id):
         return jsonify({"message": "Supabase client not initialized"}), 500
         
     try:
-        response = supabase.table('collections').delete().eq('id', collection_id).execute()
+        response = supabase.table('collections').delete().eq('id', collection_id).eq('user_id', g.user_id).execute()
         if not response.data:
             return jsonify({"message": f"Collection {collection_id} not found"}), 404
         return jsonify({"message": f"Collection {collection_id} deleted successfully"})

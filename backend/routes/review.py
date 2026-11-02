@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from services.supabase_client import get_supabase
 
 review_bp = Blueprint('review', __name__)
@@ -24,7 +24,7 @@ def get_queue():
     # Get words where next_review is null or in the past
     try:
         now_str = datetime.utcnow().isoformat()
-        query = supabase.table('words').select('*').or_(f"next_review.is.null,next_review.lte.{now_str}")
+        query = supabase.table('words').select('*').eq('user_id', g.user_id).or_(f"next_review.is.null,next_review.lte.{now_str}")
         if collection_id and collection_id != "all":
             query = query.eq('collection_id', collection_id)
             
@@ -46,7 +46,7 @@ def submit_answer():
     
     try:
         # Fetch current word stats
-        word_res = supabase.table('words').select('review_count, mastery').eq('id', word_id).single().execute()
+        word_res = supabase.table('words').select('review_count, mastery').eq('id', word_id).eq('user_id', g.user_id).single().execute()
         word = word_res.data
         
         if not word:
@@ -80,7 +80,7 @@ def submit_answer():
             "next_review": next_review_time.isoformat()
         }
         
-        res = supabase.table('words').update(update_data).eq('id', word_id).execute()
+        res = supabase.table('words').update(update_data).eq('id', word_id).eq('user_id', g.user_id).execute()
         
         return jsonify(res.data[0]), 200
     except Exception as e:

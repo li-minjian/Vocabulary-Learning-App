@@ -30,6 +30,7 @@ export interface ImportPayload {
   language: string;
   collection_id: string | null;
   conflict: 'skip' | 'keep_both';
+  allow_numeric?: boolean;
 }
 export interface RowResult {
   row: number;
@@ -39,6 +40,10 @@ export interface RowResult {
   message?: string;
   duplicate?: boolean;
   word_saved?: boolean;
+  translation?: string;
+  definition?: string;
+  examples?: { sentence: string }[];
+  language?: string;
 }
 export interface ImportPreview { ready: number; skipped: number; invalid: number; duplicates: number; rows: RowResult[] }
 export interface ImportResult { import_id: string; imported: number; resumed: number; skipped: number; invalid: number; failed: number; rows: RowResult[] }

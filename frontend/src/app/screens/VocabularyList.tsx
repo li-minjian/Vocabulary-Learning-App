@@ -1,4 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useVocabularyVersion } from '../hooks/useVocabularyVersion';
+import { VocabularyManagement } from '../components/VocabularyManagement';
+import { announceVocabularyChange } from '../../lib/vocabularyManagement';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from "react-router";
 import { Plus, Filter, SlidersHorizontal, MoreVertical, Clock, Tag, Volume2, Edit2, Trash2, Loader2, Search } from 'lucide-react';
 import { checkBackendConnection, fetchWords, deleteWord, type VocabularyWord } from '../../lib/api';
@@ -17,7 +20,11 @@ import {
 } from '../components/ui/alert-dialog';
 
 export function VocabularyList() {
+  const vocabularyVersion = useVocabularyVersion();
   const navigate = useNavigate();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionNotice, setSelectionNotice] = useState('');
+  const pageCheckbox = useRef<HTMLInputElement>(null);
   
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'error'>('checking');
   const [connectionMessage, setConnectionMessage] = useState('Connecting to Flask vocabulary service...');
@@ -37,6 +44,8 @@ export function VocabularyList() {
   // Reset pagination to page 1 on filter/search adjustments
   useEffect(() => {
     setCurrentPage(1);
+    setSelectedIds(new Set());
+    setSelectionNotice('Selection resets when filters change.');
   }, [searchQuery, selectedLanguage, selectedTag, selectedMastery]);
 
   // Compile unique lists for select dropdowns
@@ -99,6 +108,13 @@ export function VocabularyList() {
   const endIndex = Math.min(startIndex + pageSize, totalItems);
   const paginatedWords = filteredWords.slice(startIndex, endIndex);
 
+  const pageSelected = paginatedWords.filter(word => selectedIds.has(String(word.id))).length;
+  useEffect(() => { if (pageCheckbox.current) pageCheckbox.current.indeterminate = pageSelected > 0 && pageSelected < paginatedWords.length; }, [pageSelected, paginatedWords.length]);
+  function togglePage(checked: boolean) {
+    setSelectionNotice('');
+    setSelectedIds(previous => { const next = new Set(previous); paginatedWords.forEach(word => checked ? next.add(String(word.id)) : next.delete(String(word.id))); return next; });
+  }
+
   // States for three-dot menu and delete confirmation
   const [wordToDelete, setWordToDelete] = useState<VocabularyWord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -108,6 +124,7 @@ export function VocabularyList() {
     try {
       const items = await fetchWords();
       setWords(items);
+      setSelectedIds(previous => new Set([...previous].filter(id => items.some(word => String(word.id) === id))));
       setLoadError(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load words from backend';
@@ -121,6 +138,7 @@ export function VocabularyList() {
     setDeleteError(null);
     try {
       await deleteWord(wordToDelete.id);
+      announceVocabularyChange();
       await loadWordsList();
       setWordToDelete(null);
     } catch (err) {
@@ -165,10 +183,10 @@ export function VocabularyList() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [vocabularyVersion]);
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto bg-[#f8fafb] animate-in fade-in-50 duration-200 text-[#191c1d] pb-24 min-h-screen">
+    <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto bg-[#f8fafb] animate-in fade-in-50 duration-200 text-[#191c1d] pb-24 min-h-screen">
       {/* Header Panel */}
       <div className="shrink-0 border-b border-[#c2c7cc]/50 pb-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
@@ -299,12 +317,19 @@ export function VocabularyList() {
         </div>
       )}
 
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#c2c7cc]/60 bg-white p-3 text-sm">
+        {!!selectedIds.size && <><strong>{selectedIds.size} words selected</strong><span>{pageSelected} selected on this page · {selectedIds.size === filteredWords.length ? 'Selected across all filtered results' : 'Selection persists across pages'}</span><button className="underline" onClick={() => setSelectedIds(new Set(filteredWords.map(word => String(word.id))))}>Select all {filteredWords.length} matching filters</button><button className="underline" onClick={() => setSelectedIds(new Set())}>Clear selection</button></>}
+        <VocabularyManagement selectedIds={[...selectedIds]} onRefresh={loadWordsList} onClearSelection={() => setSelectedIds(new Set())} />
+        {selectionNotice && <p role="status" className="w-full text-muted-foreground">{selectionNotice}</p>}
+      </div>
+
       {/* Table Card */}
       <div className="bg-white border border-[#c2c7cc]/60 rounded-3xl shadow-sm overflow-visible relative z-10">
         <div className="overflow-x-auto rounded-t-3xl">
           <table className="w-full border-collapse">
             <thead className="bg-[#f8fafb] border-b border-[#c2c7cc]/40">
               <tr>
+                <th className="w-10 p-3"><input ref={pageCheckbox} type="checkbox" aria-label="Select all words on this page" checked={!!paginatedWords.length && pageSelected === paginatedWords.length} disabled={!paginatedWords.length} onChange={event => togglePage(event.target.checked)} /></th>
                 <th className="text-left px-6 py-4 text-[10px] font-bold text-[#42474b] uppercase tracking-wider select-none">
                   Word
                 </th>
@@ -333,6 +358,7 @@ export function VocabularyList() {
                   onClick={() => navigate('/vocabulary/' + item.id, { state: item })}
                   className="hover:bg-[#f2f4f5]/30 cursor-pointer transition-all group duration-150"
                 >
+                  <td className="p-3" onClick={event => event.stopPropagation()}><input type="checkbox" aria-label={`Select word ${item.word}`} checked={selectedIds.has(String(item.id))} onChange={event => { const checked = event.target.checked; setSelectionNotice(''); setSelectedIds(previous => { const next = new Set(previous); if (checked) next.add(String(item.id)); else next.delete(String(item.id)); return next; }); }} /></td>
                   <td className="px-6 py-4.5">
                     <div className="flex items-center gap-2.5">
                       <span className="font-extrabold text-[15px] text-[#191c1d] group-hover:text-[#002434] transition-colors">{item.word}</span>
@@ -435,7 +461,7 @@ export function VocabularyList() {
               ))}
               {!loadError && filteredWords.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
+                  <td colSpan={8} className="px-6 py-12 text-center">
                     {words.length === 0 ? (
                       <div className="space-y-4 max-w-md mx-auto">
                         <p className="text-[#42474b] text-[13.5px] font-semibold leading-relaxed">

@@ -362,3 +362,9 @@ launch commands without editing existing secrets.
   (VOCA-RQ-008–012); [Figma QA](https://app.notion.com/p/40b5f33c39bb814caa49d8b34de3d8ca).
 - Major source entry points are linked by their exact paths throughout this file.
   Keep this reference and affected ADRs synchronized in each architecture milestone.
+
+## Import integrity and vocabulary management
+
+See [Vocabulary management](VOCABULARY-MANAGEMENT.md) for deterministic mapping,
+verified destinations, bounded user-scoped deletion, private backups and recovery.
+`/api/vocabulary-management` owns these operations; no schema or AI changes.
