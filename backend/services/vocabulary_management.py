@@ -6,7 +6,6 @@ we do not depend on the historical migration's ON DELETE behavior.
 import hashlib
 import json
 import os
-import re
 import uuid
 from datetime import datetime, timezone
 from contextlib import contextmanager
@@ -146,30 +145,24 @@ class BackupStore:
                 path.unlink(missing_ok=True)
 
 
-def verify_schema(client):
-    """Inspect current authenticated PostgREST FK metadata, not historical SQL.
+def verify_schema(client, user):
+    """Validate live FK relationships using the ordinary authenticated Data API.
 
-    Delete actions are not exposed by OpenAPI: cleanup is explicit for every
-    discovered word-dependent table, and remains independent of CASCADE.
+    The complete pg_constraint/trigger audit is recorded at deployment in
+    docs/qa/vocabulary-fk-audit-2026-11-02.json. Schema changes require re-audit.
+    Supabase's OpenAPI root requires admin credentials; do not give this runtime
+    a service-role key just to enumerate metadata. Child cleanup stays explicit.
     """
-    response = client.postgrest.session.get('', headers={'Accept': 'application/openapi+json'})
-    response.raise_for_status()
-    definitions = response.json().get('definitions', {})
-    dependent = set()
-    for table, definition in definitions.items():
-        for value in definition.get('properties', {}).values():
-            description = value.get('description', '')
-            if re.search(r"<fk table=['\"]words['\"]", description) or '`words.id`' in description:
-                dependent.add(table)
-    if dependent != set(CHILDREN):
-        print(json.dumps({'event': 'vocabulary_schema_unverified', 'word_dependents': sorted(dependent)}), flush=True)
-        raise ManagementError('Live schema has unverified vocabulary dependencies. No deletion allowed; support must review its foreign keys.', 409)
-    return sorted(dependent)
+    try:
+        client.table('words').select('id,examples(word_id),collocations(word_id),synonyms(word_id),word_tags(word_id)').eq('user_id', user).range(0, 0).execute()
+    except Exception as error:
+        raise ManagementError('Live vocabulary relationships could not be verified. No deletion allowed.', 409) from error
+    return sorted(CHILDREN)
 
 
 def prepare_clear(client, user, store):
     with store.lock(user):
-        schema = verify_schema(client)
+        schema = verify_schema(client, user)
         tables = snapshot(client, user)
         # A stable second read prevents a snapshot assembled across changing pages.
         if digest(snapshot(client, user)) != digest(tables):
@@ -207,7 +200,7 @@ def delete_owned(client, user, word_ids):
 def batch_delete(client, user, values, store):
     word_ids = ids(values)
     with store.lock(user):
-        verify_schema(client)
+        verify_schema(client, user)
         owned = read_rows(client, user, 'words', word_ids)
         if {row['id'] for row in owned} != set(word_ids):
             raise ManagementError('Selection includes unavailable or foreign-owned words. Refresh the library before retrying.', 409)
@@ -219,7 +212,7 @@ def clear_batch(client, user, operation, phrase, store):
         raise ManagementError('Type DELETE ALL VOCABULARY to confirm.')
     with store.lock(user):
         backup = store.get(user, operation)
-        if verify_schema(client) != backup['schema_word_dependents']:
+        if verify_schema(client, user) != backup['schema_word_dependents']:
             raise ManagementError('Live vocabulary dependencies changed after backup.', 409)
         original = backup['tables']
         current = snapshot(client, user)
