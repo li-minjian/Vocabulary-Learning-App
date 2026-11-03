@@ -5,6 +5,8 @@ import { VocabularyList } from './screens/VocabularyList';
 import { AddWord } from './screens/AddWord';
 import { WordDetail } from './screens/WordDetail';
 import { ImportHub } from './screens/ImportHub';
+import { ExerciseLibrary } from './screens/ExerciseLibrary';
+import { ExercisePractice } from './screens/ExercisePractice';
 import { FileImport } from './screens/FileImport';
 import { TypingPractice } from './screens/TypingPractice';
 import { ImportStep1 } from './screens/ImportStep1';
@@ -35,6 +37,9 @@ export default function App() {
           <Route path="/vocabulary/:id" element={<WordDetail />} />
           <Route path="/import" element={<ImportHub />} />
           <Route path="/import/files" element={<FileImport />} />
+          <Route path="/exercises" element={<ExerciseLibrary />} />
+          <Route path="/exercises/:setId" element={<ExerciseLibrary />} />
+          <Route path="/exercises/session/:sessionId" element={<ExercisePractice />} />
           <Route path="/practice" element={<TypingPractice />} />
           <Route path="/practice/:articleId" element={<TypingPractice />} />
           <Route path="/import/step1" element={<ImportStep1 />} />

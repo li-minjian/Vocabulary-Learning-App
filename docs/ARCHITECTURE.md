@@ -372,3 +372,9 @@ verified destinations, bounded user-scoped deletion, private backups and recover
 The file importer preserves APKG note types, native template references and cloze
 structure. One deterministic interpreter supplies suggestions; frontend cards and
 commit requests share one projection. See [interpretation and preview](IMPORT-INTERPRETATION.md).
+
+## Exercise learning domain
+
+See [Exercise import, persistence and review](EXERCISES.md) for the additive exercise
+schema, owner/RLS contracts, native-card granularity, practice sessions, review
+transaction, supported source meaning and production recovery procedure.

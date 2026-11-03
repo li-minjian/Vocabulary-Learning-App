@@ -13,6 +13,7 @@ export function Navigation({ isCollapsed, onToggleCollapse, isMobileOpen = false
   const navItems = [
     { id: 'dashboard', path: '/', label: 'Dashboard', icon: Home },
     { id: 'vocabulary', path: '/vocabulary', label: 'Vocabulary', icon: Book },
+    { id: 'exercises', path: '/exercises', label: 'Exercises', icon: Book },
     { id: 'import', path: '/import', label: 'Import', icon: Upload },
     { id: 'practice', path: '/practice', label: 'Reading & Typing', icon: Book },
     { id: 'review', path: '/review', label: 'Review', icon: RotateCcw },

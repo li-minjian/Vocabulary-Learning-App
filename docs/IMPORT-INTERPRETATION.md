@@ -1,5 +1,9 @@
 # File interpretation and live preview
 
+This documents the PR #11 vocabulary-conversion contract. The subsequent
+[Exercise learning domain](EXERCISES.md) adds independent Save as Exercises,
+persistence, practice and review; exercise groups are no longer limited to preview.
+
 The existing `/import/files` workflow now reads structure, suggests an interpretation,
 and displays editable learning cards before any vocabulary is saved. Secure 50 MiB
 uploads, generation checks, parser subprocess budgets, authentication, Collection

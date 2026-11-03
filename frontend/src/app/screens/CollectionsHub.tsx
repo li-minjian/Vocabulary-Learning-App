@@ -1,3 +1,4 @@
+import { listExerciseSets } from '../../lib/exercises';
 import { useVocabularyVersion } from '../hooks/useVocabularyVersion';
 import { Plus, FolderOpen, Book, Loader2 } from 'lucide-react';
 import { useNavigate } from "react-router";
@@ -6,6 +7,8 @@ import { fetchCollections, createCollection, type Collection } from '../../lib/a
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../components/ui/dialog';
 
 export function CollectionsHub() {
+  const [exerciseCounts,setExerciseCounts]=useState<Record<string,number>|null>(null);
+  useEffect(()=>{let live=true;void listExerciseSets().then(r=>{const counts:Record<string,number>={};for(const set of r.items)if(set.collection_id)counts[set.collection_id]=(counts[set.collection_id]||0)+set.count;if(live)setExerciseCounts(counts);}).catch(()=>{});return()=>{live=false;};},[]);
   const vocabularyVersion = useVocabularyVersion();
   const navigate = useNavigate();
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -163,7 +166,7 @@ export function CollectionsHub() {
                 <div className="flex items-center justify-between text-[12px] font-bold text-[#42474b] pt-4 mt-4 border-t border-[#c2c7cc]/30 select-none w-full">
                   <div className="flex items-center gap-1.5">
                     <Book className="w-4 h-4 text-slate-400" strokeWidth={1.5} />
-                    <span>{(collection as any).word_count ?? 0} words</span>
+                    <span>Vocabulary: {(collection as any).word_count ?? 0} · Exercises: {exerciseCounts?exerciseCounts[collection.id]||0:'…'}</span>
                   </div>
                   <span className="text-[11px] text-[#002434] opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all font-bold uppercase tracking-wider">
                     Open Folder →
@@ -206,7 +209,7 @@ export function CollectionsHub() {
                       </div>
                       <div className="text-[12px] text-[#42474b] mt-0.5 font-bold flex items-center gap-1.5 select-none">
                         <Book className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.5} />
-                        <span>{(collection as any).word_count ?? 0} words</span>
+                        <span>Vocabulary: {(collection as any).word_count ?? 0} · Exercises: {exerciseCounts?exerciseCounts[collection.id]||0:'…'}</span>
                       </div>
                     </div>
                   </div>

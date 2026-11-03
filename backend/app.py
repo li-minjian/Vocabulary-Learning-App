@@ -12,6 +12,7 @@ from routes.tags import tags_bp
 from routes.ai import ai_bp
 from routes.import_text import import_bp
 from routes.review import review_bp
+from routes.exercises import exercises_bp
 from routes.stats import stats_bp
 from routes.export import export_bp
 from routes.articles import articles_bp
@@ -173,6 +174,7 @@ def create_app() -> Flask:
     app.register_blueprint(ai_bp, url_prefix='/api/ai')
     app.register_blueprint(import_bp, url_prefix='/api/import')
     app.register_blueprint(review_bp, url_prefix='/api/review')
+    app.register_blueprint(exercises_bp, url_prefix='/api/exercises')
     app.register_blueprint(stats_bp, url_prefix='/api/stats')
     app.register_blueprint(export_bp, url_prefix='/api/export')
     app.register_blueprint(articles_bp, url_prefix='/api/articles')
