@@ -6,6 +6,7 @@ are public test values, not credentials. Storage is discarded when it stops.
 """
 import copy
 import json
+import os
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -105,6 +106,21 @@ def create_fixture_app():
     import routes.stats as stats
     import routes.export as export
     db = Database()
+    import routes.exercises as exercises
+    if os.getenv('VOCA_EXERCISE_POSTGRES')=='1':
+        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'utils'))
+        from exercise_db import Database as ExerciseDatabase
+        exercise_db=ExerciseDatabase()
+        disposable=exercise_db.table('exercise_sets').select('*').eq('user_id',USER).execute().data
+        ids={row['id'] for row in disposable if row['title'].startswith('E2E_TEST_EXERCISES_')}
+        for session in exercise_db.table('exercise_sessions').select('*').eq('user_id',USER).execute().data:
+            if session.get('config',{}).get('set_id') in ids:
+                exercise_db.table('exercise_sessions').delete().eq('id',session['id']).eq('user_id',USER).execute()
+        for id in ids:exercise_db.table('exercise_sets').delete().eq('id',id).eq('user_id',USER).execute()
+        exercise_db.table('collections').upsert([{'id':COLLECTION,'user_id':USER,'name':'E2E test collection'}],on_conflict='id',ignore_duplicates=True).execute()
+        exercises.get_supabase=lambda:exercise_db
+    else:
+        exercises.get_supabase=lambda:db
     management.get_supabase = app_module.get_supabase = articles.get_supabase = file_import.get_supabase = stats.get_supabase = review.get_supabase = export.get_supabase = lambda: db
     words.supabase = collections.supabase = tags.supabase = review.supabase = export.supabase = db
     app = create_app()

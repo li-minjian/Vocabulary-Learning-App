@@ -49,3 +49,20 @@ export function representative<T>(rows: T[], limit = 100): T[] {
   if (rows.length <= limit) return rows;
   return Array.from({ length: limit }, (_, i) => rows[Math.round(i * (rows.length - 1) / (limit - 1))]);
 }
+
+export function exerciseNotes(parsed:ParsedList,configs:Record<string,GroupConfig>,selected:Set<number>,groupIds:Set<string>){
+  const groups=new Map(parsed.groups.filter(g=>groupIds.has(g.id)).map(g=>[g.id,g]));
+  const positions=new Map(parsed.row_numbers.map((n,i)=>[n,i]));
+  return [...groups.values()].flatMap(g=>g.row_numbers.filter(n=>selected.has(n)).map(number=>{
+    const index=positions.get(number)!;const cells=parsed.rows[index];const config=configs[g.id];
+    const note:Record<string,unknown>={kind:g.analysis.kind,source:parsed.provenance[index]||{},position:index,source_digest:parsed.import_id.split(':')[0]};
+    for(const [key,col]of Object.entries(config.sourceMapping)){
+      if(col==='')continue;
+      const field=g.fields.find(f=>f.column===Number(col));
+      // Original cloze text is the authoritative structured answer source.
+      note[key]=cells[key==='question'?(field?.from_column??Number(col)):Number(col)]||'';
+    }
+    note.source_deck=typeof note.source==='string'?note.source:(parsed.provenance[index]?.deck_names||[]).join(' / ');note.source=parsed.provenance[index]||{};
+    return note;
+  }));
+}

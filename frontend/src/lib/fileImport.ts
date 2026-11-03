@@ -13,7 +13,7 @@ export interface ImportGroup {
   templates: { name: string; front: {field:string;filters:string[]}[]; back: {field:string;filters:string[]}[]; scripted: boolean; media: boolean }[];
   analysis: { kind: string; confidence: number; reason: string; fields: FieldSuggestion[]; mapping: Record<string,string>; source_mapping: Record<string,number>; sample_rows: number[]; unresolved: string[] };
 }
-export interface NoteProvenance { note_id?: string; group_id?: string; card_count?: number; deck_names?: string[]; cloze_indices?: number[]; has_media?: boolean }
+export interface NoteProvenance { note_id?: string; group_id?: string; card_count?: number; deck_names?: string[]; cloze_indices?: number[]; has_media?: boolean; cards?: {id:string;ordinal:number|null;deck:string}[] }
 export interface ParsedList {
   import_id: string;
   columns: string[];

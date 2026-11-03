@@ -224,8 +224,18 @@ def _parse_apkg(data, digest):
                     decks = {str(row[0]): {'name': row[1]} for row in conn.execute('SELECT id, name FROM decks LIMIT 10000')}
                 if any(not isinstance(deck, dict) for deck in decks.values()):
                     raise ImportValidationError('Unsupported Anki deck metadata. Export as Anki TXT instead.')
-                note_decks, card_counts = {}, {}
+                note_decks, card_counts, native_cards = {}, {}, {}
                 if 'cards' in tables:
+                    card_columns = {item[1] for item in conn.execute('PRAGMA table_info(cards)')}
+                    card_id = 'id' if 'id' in card_columns else 'rowid'
+                    ordinal = 'ord' if 'ord' in card_columns else 'NULL'
+                    for cid, nid, did, order in conn.execute(f'SELECT {card_id},nid,did,{ordinal} FROM cards ORDER BY {card_id} LIMIT 50001'):
+                        cards = native_cards.setdefault(str(nid), [])
+                        if len(cards) >= 32:
+                            raise ImportValidationError('At most 32 native card variants per note are supported.')
+                        cards.append({'id': str(cid), 'ordinal': order, 'deck': plain_text(decks.get(str(did), {}).get('name', '')).replace('\x1f', '::')})
+                    if sum(map(len, native_cards.values())) > 50000:
+                        raise ImportValidationError('Too many native cards in this package.')
                     for nid, count, deck_ids in conn.execute('SELECT nid, COUNT(*), GROUP_CONCAT(DISTINCT did) FROM cards GROUP BY nid LIMIT 10001'):
                         ids = sorted(str(deck_ids).split(','))
                         if len(ids) > 100:
@@ -278,7 +288,7 @@ def _parse_apkg(data, digest):
                         raise ImportValidationError('Notes of one type have inconsistent fields. Export a repaired Anki deck or TXT.')
                     group['row_numbers'].append(len(records) + 1)
                     group['native_cards'] += card_counts.get(str(nid), 0)
-                    provenance.append({'note_id': str(nid), 'group_id': str(mid), 'card_count': card_counts.get(str(nid), 0),
+                    provenance.append({'note_id': str(nid), 'group_id': str(mid), 'card_count': card_counts.get(str(nid), 0), 'cards': native_cards.get(str(nid), []),
                                        'deck_names': note_decks.get(str(nid), []),
                                        'has_media': any(re.search(r'<(?:img|audio|video)\b|\[sound:', cell, re.I) for cell in values),
                                        'cloze_indices': sorted({int(value) for cell in values for value in re.findall(r'\{\{c(\d+)::', cell)})})

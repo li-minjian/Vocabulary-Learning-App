@@ -1,3 +1,4 @@
+import { CollectionExercises } from '../components/CollectionExercises';
 import { ArrowLeft, Plus, Trash2, MoreVertical, Clock, Loader2, FolderOpen, Volume2 } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from "react-router";
 import { useEffect, useState } from 'react';
@@ -164,6 +165,7 @@ export function CollectionDetail() {
         </div>
       </div>
 
+      {collectionId&&<CollectionExercises collectionId={collectionId}/>}
       <div className="flex items-center justify-between gap-4 pt-2">
         <h2 className="font-extrabold text-[16.5px] text-[#002434] tracking-tight">Words in Collection Folder</h2>
         <button

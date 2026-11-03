@@ -166,10 +166,13 @@ def interpret(group, rows):
     source_mapping = {}
     for key, alternatives in {'question': ('prompt', 'question', 'cloze_text', 'word', 'front'), 'answer': ('cloze_answer', 'answer', 'translation', 'back'),
                               'explanation': ('explanation', 'definition'), 'choices': ('choices',), 'instruction': ('instruction',),
-                              'source': ('source',), 'completed': ('completed',), 'transcript': ('transcript',)}.items():
+                              'source': ('source',), 'completed': ('completed',), 'transcript': ('transcript',), 'tags': ('tags',)}.items():
         for role in alternatives:
             if field(role) and field(role)['evidence']['sampled_nonempty']:
                 source_mapping[key] = field(role)['column']; break
+    for key,aliases in {'category':('category',),'unit':('unit','chapter')}.items():
+        matches=[item for item in fields if item['name'].strip().lower() in aliases]
+        if len(matches)==1:source_mapping[key]=matches[0]['column']
     samples = set(_sample_indices(len(rows), 7))
     important = [int(mapping['word'])] if mapping['word'] else [source_mapping.get('question', group['fields'][0]['column'])]
     missing = [i for i, row in enumerate(rows) if any(c >= len(row) or not row[c] for c in important)]
@@ -219,3 +222,147 @@ def enrich(result, groups=None, provenance=None):
         group['analysis'] = interpret(group, local_rows)
     result['groups'] = groups
     return result
+
+
+# Exercise practice semantics share this single interpreter.
+import hashlib
+import json
+import unicodedata
+from services.file_parser import ImportValidationError
+
+def text(value, limit=20000):
+    if not isinstance(value, str) or len(value) > limit:
+        raise ImportValidationError('Exercise text exceeds its supported limit.')
+    from services.file_parser import plain_text
+    return plain_text(value, preserve_cloze=True).strip()
+
+def normalize_answer(value):
+    return ' '.join(unicodedata.normalize('NFC', value).split()).casefold()
+
+def interpret_note(note):
+    """One study item per native card/cloze variant; repeated blanks remain separate."""
+    if not isinstance(note, dict):
+        raise ImportValidationError('Invalid exercise source.')
+    if type(note.get('position', 0)) != int or not 0 <= note.get('position', 0) < 10000:
+        raise ImportValidationError('Invalid source row position.')
+    source = note.get('source', {})
+    if not isinstance(source, dict):
+        raise ImportValidationError('Invalid source provenance.')
+    question = text(note.get('question', ''))
+    answer = text(note.get('answer', ''))
+    base = {key: text(note.get(key, ''), 2000 if key in ('category', 'unit', 'source_deck', 'tags') else 20000) for key in ('instruction', 'choices', 'explanation', 'category', 'unit', 'source_deck', 'tags', 'transcript')}
+    matches = list(CLOZE.finditer(question))
+    unsupported = []
+    if re.search('\\{\\{c\\d+::', CLOZE.sub('', question)):
+        unsupported.append('Nested or malformed cloze syntax needs manual review.')
+    if matches and answer:
+        interpreted=cloze_text(question)
+        if interpreted and answer!=interpreted['answer']:
+            unsupported.append('The selected Answer source conflicts with explicit cloze markers. Restore the extracted answer or choose a question without cloze markup.')
+    cards = source.get('cards', [])
+    if not isinstance(cards, list) or len(cards) > 32:
+        raise ImportValidationError('Too many card variants.')
+    indices = sorted({int(m[1]) for m in matches})
+    if not cards:
+        cards = [{'id': '', 'ordinal': i - 1} for i in indices] if indices else [{'id': '', 'ordinal': 0}]
+    output = []
+    for variant, card in enumerate(cards):
+        if not isinstance(card, dict):
+            raise ImportValidationError('Invalid native card.')
+        reasons = list(unsupported)
+        ordinal = card.get('ordinal')
+        if not matches and len(cards) > 1:
+            reasons.append('Multiple non-cloze native templates require card-side review; this group is not imported automatically.')
+        if matches:
+            if ordinal is None:
+                if len(indices) == 1:
+                    active = indices[0]
+                else:
+                    active = indices[min(variant, len(indices) - 1)]
+                    reasons.append('Native cloze ordinal unavailable; verify this card variant.')
+            elif type(ordinal) is int and ordinal >= 0:
+                active = ordinal + 1
+            else:
+                raise ImportValidationError('Invalid card ordinal.')
+            if active not in indices:
+                reasons.append('Native card has no corresponding cloze blank.')
+            segments = []
+            blanks = []
+            offset = 0
+            completed = ''
+            prompt = ''
+            for match in matches:
+                before = question[offset:match.start()]
+                segments.append({'text': before})
+                completed += before + match[2]
+                prompt += before
+                if int(match[1]) == active:
+                    index = len(blanks)
+                    blanks.append({'index': index, 'cloze_index': active, 'expected': [match[2]], 'hint': match[3] or ''})
+                    segments.append({'blank': index})
+                    prompt += '_____'
+                else:
+                    segments.append({'text': match[2]})
+                    prompt += match[2]
+                offset = match.end()
+            segments.append({'text': question[offset:]})
+            completed += question[offset:]
+            prompt += question[offset:]
+            expected = [blank['expected'] for blank in blanks]
+            mode = 'cloze'
+        else:
+            active = None
+            segments = [{'text': question}]
+            prompt = question
+            completed = answer
+            expected = [[answer]] if answer else []
+            # Explicit JSON arrays in an Answer export field are accepted alternatives.
+            # Slash-separated prose is never guessed to contain equivalent answers.
+            if answer.startswith('['):
+                try:
+                    alternatives=json.loads(answer)
+                    if isinstance(alternatives,list) and 1<=len(alternatives)<=20 and all(isinstance(v,str) and 0<len(v)<=2000 for v in alternatives):expected=[alternatives]
+                except (ValueError,TypeError):pass
+            blanks = []
+            mode = 'self_assess'
+        if not question:
+            reasons.append('Question is empty.')
+        if not matches and (not answer):
+            reasons.append('No supported answer source; choose one before saving.')
+        if source.get('has_media'):
+            media_warning = 'Source contains media. Media is not imported; verify that this text is sufficient.'
+        else:
+            media_warning = ''
+        base_variant = {**base, 'source_deck': text(card.get('deck', '')) or base['source_deck']}
+        options = []
+        if not matches and answer:
+            try:
+                choices = json.loads(base['choices'])
+                if isinstance(choices, list) and 2 <= len(choices) <= 20 and all((isinstance(v, str) and 0 < len(v) <= 2000 for v in choices)) and (len(set(choices)) == len(choices)) and all(value in choices for value in expected[0]):
+                    options = choices
+                    mode = 'choice'
+            except (ValueError, TypeError):
+                pass
+        document = {**base_variant, 'options': options, 'kind': str(note.get('kind', 'question_answer'))[:80], 'mode': mode, 'question': prompt, 'segments': segments, 'blanks': blanks, 'expected': expected, 'completed': completed, 'original_question': question, 'answer_source':answer, 'source': {'note_id': str(source.get('note_id', ''))[:100], 'group_id': str(source.get('group_id', ''))[:100], 'card_id': str(card.get('id', ''))[:100], 'ordinal': ordinal, 'cloze_index': active, 'position': note.get('position', 0), 'has_media': bool(source.get('has_media'))}, 'warnings': [media_warning] if media_warning else [], 'unsupported': reasons}
+        native = ':'.join((document['source']['group_id'], document['source']['note_id'], document['source']['card_id'] or str(active if active is not None else variant)))
+        source_key = 'anki:' + native if source.get('note_id') else 'list:' + str(note.get('source_digest', '')) + ':' + str(note.get('position', 0)) + ':' + str(variant)
+        document['source_key'] = source_key
+        output.append(document)
+    return output
+
+def content_hash(document):
+    return hashlib.sha256(json.dumps(document, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
+
+def check_answer(document, answers, revealed=False):
+    if not isinstance(answers, list) or len(answers) > 64 or any((not isinstance(a, str) or len(a) > 2000 for a in answers)):
+        raise ImportValidationError('Provide at most 64 text answers (2,000 characters each).')
+    expected = document['expected']
+    correct = None
+    if document['mode'] in ('cloze', 'choice') and (not revealed):
+        correct = len(answers) == len(expected) and all((any((normalize_answer(a) == normalize_answer(v) for v in alternatives)) for a, alternatives in zip(answers, expected)))
+    return {'correct': correct, 'expected': expected, 'completed': document['completed'], 'explanation': document['explanation'], 'warnings': document['warnings'], 'needs_self_assessment': correct is None}
+
+def public_question(row):
+    """Practice responses contain no expected answers/completed/source cloze text."""
+    document = row['document']
+    return {'id': row['id'], 'set_id': row['set_id'], 'category': row['category'], 'unit': row['unit'], 'source_deck': row['source_deck'], 'document': {key: document[key] for key in ('mode', 'question', 'segments', 'instruction', 'choices', 'options', 'warnings')}, 'hints': [blank['hint'] for blank in document['blanks']]}
