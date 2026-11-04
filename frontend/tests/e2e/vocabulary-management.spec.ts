@@ -57,14 +57,14 @@ test('page selection indeterminate, pagination, all matching filters, reset and 
   await page.getByRole('button', { name: 'Confirm import', exact: true }).click();
   await page.getByRole('link', { name: 'Open Vocabulary' }).click();
   await page.getByPlaceholder('Search words, meanings...').fill('bulk-fixture-');
-  await page.getByLabel('Select word bulk-fixture-00', { exact: true }).check();
+  await page.getByRole('checkbox',{name:/Select word bulk-fixture-/}).first().check();
   const allPage = page.getByLabel('Select all words on this page');
   expect(await allPage.evaluate((node: HTMLInputElement) => node.indeterminate)).toBe(true);
   await allPage.check();
   await expect(page.getByText('20 words selected', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(page.getByText('20 words selected', { exact: true })).toBeVisible();
-  await page.getByLabel('Select word bulk-fixture-20', { exact: true }).check();
+  await page.getByRole('checkbox',{name:/Select word bulk-fixture-/}).first().check();
   await expect(page.getByText('21 words selected', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Select all 25 matching filters', exact: true }).click();
   await expect(page.getByText(/Selected across all filtered results/)).toBeVisible();
@@ -87,6 +87,8 @@ test('clear requires verified private backup and exact typed consent, preserves 
   await page.getByLabel('Title', { exact: true }).fill('Preserved during vocabulary reset');
   await page.getByLabel('Article text').fill('This article must remain after clearing vocabulary.');
   await page.getByRole('button', { name: /Save.*practice/ }).click();
+  await expect(page).toHaveURL(/\/learn\?method=typing/);
+  await page.getByRole('button',{name:'Start Typing',exact:true}).click();
   await expect(page).toHaveURL(/\/practice\/[^/]+/);
   const article = page.url();
   await page.goto('/vocabulary');

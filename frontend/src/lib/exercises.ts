@@ -158,7 +158,7 @@ export const commitExercises = (set_id: string, items: PreparedExercise[], sourc
   items,
   source_digest,allow_text_only_media
 });
-export const startExerciseSession = (config: Record<string, unknown>, id = crypto.randomUUID()) => send<SessionDetail>('/sessions', {
+export const startExerciseSession = (config: Record<string, unknown>, id: string = crypto.randomUUID()) => send<SessionDetail>('/sessions', {
   ...config,
   id
 });

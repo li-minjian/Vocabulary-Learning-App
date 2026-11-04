@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from contextlib import contextmanager
 from services.upload_service import get_upload_service
 
-CHILDREN = ('examples', 'collocations', 'synonyms', 'word_tags')
+CHILDREN = ('examples', 'collocations', 'synonyms', 'word_tags', 'vocabulary_attempts')
 PRESERVED = ('collections', 'imported_text', 'tags')
 BATCH = 200
 PHRASE = 'DELETE ALL VOCABULARY'
@@ -154,7 +154,7 @@ def verify_schema(client, user):
     a service-role key just to enumerate metadata. Child cleanup stays explicit.
     """
     try:
-        client.table('words').select('id,examples(word_id),collocations(word_id),synonyms(word_id),word_tags(word_id)').eq('user_id', user).range(0, 0).execute()
+        client.table('words').select('id,examples(word_id),collocations(word_id),synonyms(word_id),word_tags(word_id),vocabulary_attempts(word_id)').eq('user_id', user).range(0, 0).execute()
     except Exception as error:
         raise ManagementError('Live vocabulary relationships could not be verified. No deletion allowed.', 409) from error
     return sorted(CHILDREN)
@@ -247,7 +247,7 @@ def restore_backup(client, user, operation, phrase, store):
         raise ManagementError('Type RESTORE VOCABULARY to confirm recovery.')
     with store.lock(user):
         backup = store.get(user, operation)
-        tables = backup['tables']
+        tables = {**backup['tables'], 'vocabulary_attempts': backup['tables'].get('vocabulary_attempts', [])}
         current = snapshot(client, user)
         # Restore exact original IDs/SRS without overwriting edits or moving words.
         for table in PRESERVED:
@@ -261,6 +261,6 @@ def restore_backup(client, user, operation, phrase, store):
                 client.table(table).upsert(tables[table][start:start+BATCH],
                     on_conflict='word_id,tag_id' if table == 'word_tags' else 'id', ignore_duplicates=True).execute()
         restored = snapshot(client, user)
-        if digest(restored) != backup['sha256']:
+        if digest(restored) != digest(tables):
             raise ManagementError('Recovery is incomplete. Retry this same backup; original IDs are preserved.', 409)
         return {'restored': len(restored['words']), 'verified': True, 'sha256': backup['sha256']}

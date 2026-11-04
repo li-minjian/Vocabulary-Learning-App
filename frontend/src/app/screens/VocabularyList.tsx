@@ -19,7 +19,7 @@ import {
   AlertDialogCancel,
 } from '../components/ui/alert-dialog';
 
-export function VocabularyList() {
+export function VocabularyList({ collection = 'all' }: { collection?: string }) {
   const vocabularyVersion = useVocabularyVersion();
   const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -89,7 +89,7 @@ export function VocabularyList() {
     }
     if (selectedMastery !== 'All') {
       const itemMastery = item.mastery || 'New';
-      if (selectedMastery === 'New' && itemMastery !== 'New') {
+      if (selectedMastery === 'New' && item.studied) {
         return false;
       }
       if (selectedMastery !== 'New' && itemMastery !== selectedMastery) {
@@ -121,7 +121,7 @@ export function VocabularyList() {
 
   const loadWordsList = async () => {
     try {
-      const items = await fetchWords();
+      const items = await fetchWords(collection);
       setWords(items);
       setSelectedIds(previous => new Set([...previous].filter(id => items.some(word => String(word.id) === id))));
       setLoadError(null);
@@ -164,7 +164,7 @@ export function VocabularyList() {
       }
 
       try {
-        const items = await fetchWords();
+        const items = await fetchWords(collection);
         if (!isMounted) return;
         setWords(items);
         setLoadError(null);
@@ -182,7 +182,7 @@ export function VocabularyList() {
     return () => {
       isMounted = false;
     };
-  }, [vocabularyVersion]);
+  }, [vocabularyVersion, collection]);
 
   return (
     <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto bg-[#f8fafb] animate-in fade-in-50 duration-200 text-[#191c1d] pb-24 min-h-screen">

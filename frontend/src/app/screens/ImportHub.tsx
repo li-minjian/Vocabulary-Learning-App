@@ -101,7 +101,7 @@ export function ImportHub() {
 
       <div className="rounded-2xl border border-border bg-card p-6 flex flex-wrap items-center justify-between gap-4">
         <div><h2 className="font-bold">Your reading library</h2><p className="text-sm text-muted-foreground mt-1">Save articles, look up words locally, and continue typing practice.</p></div>
-        <button onClick={() => navigate('/practice')} className="rounded-xl border border-border px-4 py-2 text-sm font-semibold">Open Reading & Typing</button>
+        <button onClick={() => navigate('/library?type=articles')} className="rounded-xl border border-border px-4 py-2 text-sm font-semibold">Open Reading & Typing</button>
       </div>
     </div>
   );

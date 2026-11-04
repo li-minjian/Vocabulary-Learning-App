@@ -129,11 +129,13 @@ for (const extension of ['txt', 'md', 'pdf']) {
     await page.getByLabel('Article text', { exact: true }).fill(content+'\nEdited before saving.');
     await expect(page.getByLabel('Language', { exact: true })).toHaveValue('German');
     await page.getByRole('button', { name: 'Save & start practice', exact: true }).click();
+    await expect(page).toHaveURL(/\/learn\?method=typing/);
+    await page.getByRole('button',{name:'Start Typing',exact:true}).click();
     await expect(page).toHaveURL(/\/practice\/[^/]+/);
     await expect(page.getByRole('heading', { name: `Reviewed ${extension} article`, exact: true })).toBeVisible();
     expect(saves).toBe(1); expect(ai).toBe(0);
     await page.getByRole('link', { name: 'Article library', exact: true }).click();
-    await expect(page.getByRole('link', { name: new RegExp(`Reviewed ${extension} article`) })).toBeVisible();
+    await expect(page.getByRole('heading', { name: `Reviewed ${extension} article`,exact:true })).toBeVisible();
   });
 }
 

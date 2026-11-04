@@ -63,11 +63,12 @@ test('real PostgreSQL import, practice, reload, rating, resume, results and revi
   await expect(page.getByRole('heading', {
     name: 'Browse exercises · 3'
   })).toBeVisible();
+  await page.getByRole('link',{name:'Practice this set',exact:true}).click();
   await page.getByLabel('Session size', {
     exact: true
   }).fill('2');
   await page.getByRole('button', {
-    name: 'Start practicing',
+    name: 'Start Practicing',
     exact: true
   }).click();
   await expect(page.getByLabel('Blank 1', {
@@ -95,9 +96,8 @@ test('real PostgreSQL import, practice, reload, rating, resume, results and revi
     name: 'Pause — resume later',
     exact: true
   }).click();
-  await page.getByRole('link', {
-    name: /Resume · 1\/2 completed/
-  }).click();
+  await page.getByLabel('Continue Learning').selectOption({index:1});
+  await page.getByRole('button',{name:'Resume exercise session',exact:true}).click();
   await expect(page.getByText('1 / 2 completed', {
     exact: true
   })).toBeVisible();
@@ -122,14 +122,9 @@ test('real PostgreSQL import, practice, reload, rating, resume, results and revi
     fullPage: true
   });
   await page.goto('/review');
-  await page.getByRole('button', {
-    name: 'Choose Exercise Set / Review all due',
-    exact: true
-  }).click();
-  await expect(page.getByRole('heading', {
-    name: 'Exercises',
-    exact: true
-  })).toBeVisible();
+  await expect(page).toHaveURL(/learn\?method=review/);
+  await page.getByLabel('Review scope').selectOption('exercises');
+  await expect(page.getByLabel('Vocabulary format')).toHaveCount(0);
   expect(words).toBe(0);
   expect(ai).toBe(0);
 });
@@ -140,11 +135,12 @@ test('exercise mapping edits, multiple cloze cards, idempotent reimport and mobi
   await expect(page.getByRole('heading', {
     name: 'Browse exercises · 2'
   })).toBeVisible();
+  await page.getByRole('link',{name:'Practice this set',exact:true}).click();
   await page.getByLabel('Session size', {
     exact: true
   }).fill('2');
   await page.getByRole('button', {
-    name: 'Start practicing',
+    name: 'Start Practicing',
     exact: true
   }).click();
   await page.setViewportSize({
@@ -214,11 +210,12 @@ test('source choices, self assessment and confirmed exercise deletion stay separ
 }) => {
   await importExercises(page, 'qa.apkg');
   const setUrl=page.url();
+  await page.getByRole('link',{name:'Practice this set',exact:true}).click();
   await page.getByLabel('Session size', {
     exact: true
   }).fill('1');
   await page.getByRole('button', {
-    name: 'Start practicing',
+    name: 'Start Practicing',
     exact: true
   }).click();
   await expect(page.getByLabel('Your answer (optional)', {
@@ -250,5 +247,5 @@ test('source choices, self assessment and confirmed exercise deletion stay separ
   await expect(page.getByRole('button',{name:'Confirm delete set and history',exact:true})).toBeDisabled();
   await page.getByLabel('Confirm set title',{exact:true}).fill(title);
   await page.getByRole('button',{name:'Confirm delete set and history',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Exercises',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Library',exact:true})).toBeVisible();
 });

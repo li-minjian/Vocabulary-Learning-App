@@ -19,4 +19,5 @@ export interface VocabularyWord {
   source: string;
   addedAt: string;
   reviewCount: number;
+  studied?: boolean;
 }

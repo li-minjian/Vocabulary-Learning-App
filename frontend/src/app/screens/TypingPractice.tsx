@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { BookOpen, Loader2, Pause, Play, Plus, RotateCcw, Upload } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { SavedArticles } from '../components/ArticleLibrary';
 import { ArticleTypingSurface } from '../components/ArticleTypingSurface';
 import { DictionaryPanel } from '../components/DictionaryPanel';
 import { fetchArticle, fetchArticles, saveArticle, type Article } from '../../lib/articles';
@@ -120,7 +121,7 @@ function PracticeSession({ article }: { article: Article }) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <Link to="/practice" className="text-xs font-semibold text-teal-800 underline underline-offset-4">Article library</Link>
+          <Link to="/library?type=articles" className="text-xs font-semibold text-teal-800 underline underline-offset-4">Article library</Link>
           <h1 className="mt-2 text-2xl font-bold text-slate-900">{article.title || 'Untitled article'}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{article.language} · {metrics.totalWords} words · Reading & typing</p>
         </div>
@@ -231,7 +232,7 @@ export function TypingPractice() {
     setSaving(true); setError('');
     try {
       const value = await saveArticle({ title: title.trim() || 'Untitled article', raw_text: text.trim(), language, source_type: sourceType });
-      navigate(`/practice/${value.id}`);
+      navigate(`/learn?method=typing&article=${value.id}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not save article. Your text is still available below.');
     } finally { setSaving(false); }
@@ -261,9 +262,7 @@ export function TypingPractice() {
             <p className="text-xs text-muted-foreground">{text.trim().split(/\s+/u).filter(Boolean).length} words · {text.length.toLocaleString()}/100,000 characters · Saved to your library only after confirmation</p>
             <button type="submit" disabled={saving || extracting || !text.trim()} className={`${controlClass} w-full !border-primary !bg-primary !text-white`}>{saving ? 'Saving article…' : 'Save & start practice'}</button>
           </form>
-          <section className="space-y-4"><div className="flex items-center justify-between"><h2 className="text-lg font-bold text-primary">Your article library</h2><span className="text-xs text-muted-foreground">{articles.length} articles</span></div>
-            {!articles.length ? <div className="rounded-2xl border border-dashed border-border bg-white p-8 text-center"><BookOpen className="mx-auto size-7 text-slate-400" /><p className="mt-4 text-sm font-semibold text-primary">Your next reading session starts here</p><p className="mt-2 text-sm text-muted-foreground">Upload or paste an article to save it and begin typing. Articles saved from Article Import will also appear here.</p></div> : <div className="space-y-3">{articles.map(item => <Link key={item.id} to={`/practice/${item.id}`} className="block rounded-2xl border border-border bg-white p-5 transition-colors hover:border-teal-400"><h3 className="break-words font-semibold text-primary">{item.title || 'Untitled article'}</h3><p className="mt-2 text-xs text-muted-foreground">{item.language} · {item.raw_text.trim().split(/\s+/u).filter(Boolean).length} words</p><p className="mt-3 line-clamp-2 break-words text-sm leading-relaxed text-slate-500">{item.raw_text}</p><span className="mt-4 block text-xs font-semibold text-teal-800">Open practice →</span></Link>)}</div>}
-          </section>
+          <section className="space-y-4"><h2 className="text-lg font-bold text-primary">Your article library</h2><SavedArticles articles={articles}/></section>
         </div>
       </>}
     </div>

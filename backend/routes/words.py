@@ -31,7 +31,7 @@ def list_words():
         
     try:
         items = list_user_words(supabase, g.user_id,
-            '*, examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))',
+            '*, vocabulary_attempts(count), examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))',
             request.args.get('collection_id'))
         return jsonify({"items": items, "count": len(items)})
     except Exception as e:
@@ -43,7 +43,7 @@ def get_word(word_id):
         return jsonify({"message": "Supabase client not initialized"}), 500
         
     try:
-        response = supabase.table('words').select('*, examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))').eq('id', word_id).eq('user_id', g.user_id).execute()
+        response = supabase.table('words').select('*, vocabulary_attempts(count), examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))').eq('id', word_id).eq('user_id', g.user_id).execute()
         if not response.data:
             return jsonify({"message": f"Word {word_id} not found"}), 404
         return jsonify(response.data[0])
@@ -105,7 +105,7 @@ def create_word():
             supabase.table('synonyms').insert(rel_inserts).execute()
             
         # Refetch with relations
-        new_word = supabase.table('words').select('*, examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))').eq('id', word_id).eq('user_id', g.user_id).execute()
+        new_word = supabase.table('words').select('*, vocabulary_attempts(count), examples(*), collocations(*), synonyms(*), tags:word_tags(tag:tags(*))').eq('id', word_id).eq('user_id', g.user_id).execute()
         return jsonify(new_word.data[0]), 201
     except Exception as e:
         return jsonify({"message": str(e)}), 500

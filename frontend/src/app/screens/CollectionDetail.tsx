@@ -2,7 +2,7 @@ import { CollectionExercises } from '../components/CollectionExercises';
 import { ArrowLeft, Plus, Trash2, MoreVertical, Clock, Loader2, FolderOpen, Volume2 } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from "react-router";
 import { useEffect, useState } from 'react';
-import { fetchWordsByCollection, fetchCollectionById, deleteCollection, type VocabularyWord } from '../../lib/api';
+import { fetchWordsByCollection, fetchCollectionById, deleteCollection, updateCollection, type VocabularyWord } from '../../lib/api';
 import { speakWord } from '../../lib/speech';
 import {
   AlertDialog,
@@ -23,6 +23,7 @@ export function CollectionDetail() {
 
   const [collection, setCollection] = useState(data || { name: '...', description: '' });
 
+  const [renaming,setRenaming]=useState(false),[nameDraft,setNameDraft]=useState(''),[renameBusy,setRenameBusy]=useState(false),[renameError,setRenameError]=useState('');
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +101,7 @@ export function CollectionDetail() {
         </button>
       </div>
 
+      {renaming&&<form className="space-y-3 rounded-xl border bg-white p-4" onSubmit={async e=>{e.preventDefault();if(!collectionId||renameBusy)return;setRenameBusy(true);setRenameError('');try{const saved=await updateCollection(collectionId,nameDraft.trim());setCollection(saved);setRenaming(false);}catch(error){setRenameError(error instanceof Error?error.message:'Rename was not confirmed.');}finally{setRenameBusy(false);}}}><label className="block text-sm">Collection name<input className="ml-2 min-h-11 rounded-xl border px-3" value={nameDraft} maxLength={255} onChange={e=>setNameDraft(e.target.value)}/></label>{renameError&&<p role="alert">{renameError}</p>}<button className="min-h-11 rounded-xl bg-[#002434] px-4 text-white" disabled={renameBusy||!nameDraft.trim()}>Save Collection name</button><button className="ml-3 underline" type="button" onClick={()=>setRenaming(false)}>Cancel rename</button></form>}
       {/* Header Panel Card */}
       <div className="bg-white border border-[#c2c7cc]/60 rounded-3xl p-8 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
@@ -132,6 +134,7 @@ export function CollectionDetail() {
               <Plus className="w-4 h-4 text-[#002434]" strokeWidth={2.5} />
               <span>Add Words</span>
             </button>
+            <button className="min-h-10 rounded-xl border px-4 text-sm font-semibold" disabled={isLoading} onClick={()=>{setNameDraft(collection.name);setRenameError('');setRenaming(true);}}>Rename Collection</button>
             <button 
               onClick={handleDeleteClick}
               disabled={isDeleting || isLoading}
