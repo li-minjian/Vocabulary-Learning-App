@@ -61,7 +61,11 @@ def update_collection(collection_id):
     if not supabase:
         return jsonify({"message": "Supabase client not initialized"}), 500
         
-    data = request.json
+    data = request.get_json(silent=True) or {}
+    if 'name' in data:
+        if not isinstance(data['name'],str) or not data['name'].strip() or len(data['name'].strip())>255:
+            return jsonify({'message':'Collection name must contain 1–255 characters.'}),400
+        data['name']=data['name'].strip()
     try:
         update_data = {}
         for key in ["name", "description"]:

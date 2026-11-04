@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
-import { listExerciseSets, getExerciseSet, listExerciseSessions, startExerciseSession, renameExerciseSet, deleteExerciseSet, getExercise, deleteExercise, type ExerciseSet, type StudySession, type ExerciseItem, type Attempt } from '../../lib/exercises';
+import { listExerciseSets, getExerciseSet, renameExerciseSet, deleteExerciseSet, getExercise, deleteExercise, type ExerciseSet, type ExerciseItem, type Attempt } from '../../lib/exercises';
 const box = 'rounded-2xl border border-border bg-white p-5';
 const btn = 'inline-flex min-h-11 items-center justify-center rounded-xl bg-[#002434] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50';
 const input = 'min-h-11 max-w-full rounded-xl border bg-white px-3 py-2 text-sm';
-export function ExerciseLibrary() {
+export function ExerciseLibrary({ collection = 'all' }: { collection?: string }) {
   const {
     setId
   } = useParams();
@@ -12,11 +12,8 @@ export function ExerciseLibrary() {
   const importReport=useLocation().state?.exerciseImport as Record<string,number>|undefined;
   const [sets, setSets] = useState<ExerciseSet[]>([]);
   const [detail, setDetail] = useState<Awaited<ReturnType<typeof getExerciseSet>> | null>(null);
-  const [sessions, setSessions] = useState<StudySession[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState('all');
-  const [limit, setLimit] = useState(20);
   const [category, setCategory] = useState('');
   const [unit, setUnit] = useState('');
   const [deck, setDeck] = useState('');
@@ -32,19 +29,18 @@ export function ExerciseLibrary() {
   const load = useCallback(async () => {
     setError('');
     try {
-      const [s, r, d] = await Promise.all([listExerciseSets(), listExerciseSessions(), setId ? getExerciseSet(setId, offset, {
+      const [s, d] = await Promise.all([listExerciseSets(), setId ? getExerciseSet(setId, offset, {
         category,
         unit,
         source_deck: deck
       }) : Promise.resolve(null)]);
-      setSets(s.items);
-      setSessions(r.items);
+      setSets(s.items.filter(s=>collection==='all'||(collection==='unassigned'?!s.collection_id:s.collection_id===collection)));
       setDetail(d);
       setRename(d?.set.title || '');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to load exercises.');
     }
-  }, [setId, offset, category, unit, deck]);
+  }, [setId, offset, category, unit, deck, collection]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -66,37 +62,16 @@ export function ExerciseLibrary() {
       setBusy(false);
     }
   }
-  async function start() {
-    await action(async () => {
-      const r = await startExerciseSession({
-        set_id: setId || null,
-        mode,
-        limit,
-        category,
-        unit,
-        source_deck: deck
-      });
-      navigate(`/exercises/session/${r.session.id}`);
-    });
-  }
-  const active = sessions.filter(s => s.status === 'active' && (!setId || s.config.set_id === setId));
+  const learnQuery = new URLSearchParams({method:'exercises',...(setId?{set:setId}:{}),...(detail?.set.collection_id?{collection:detail.set.collection_id}:collection!=='all'?{collection}:{}),category,unit,deck});
   return <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-8">
-  <header className="space-y-2"><Link to="/exercises" className="text-sm underline">Exercise Library</Link><h1 className="text-3xl font-bold text-[#002434]">{detail?.set.title || 'Exercises'}</h1><p className="text-sm text-slate-600">Study questions and grammar exercises. Your answers and review progress are saved separately from Vocabulary.</p></header>
-  {importReport&&<p role="status" className="rounded-xl border border-teal-200 bg-teal-50 p-4">{importReport.imported||0} exercises saved · {importReport.unchanged||0} unchanged · {importReport.conflict||0} conflicts · {importReport.unsupported||0} unsupported. Start practicing below.</p>}
+  <header className="space-y-2"><Link to="/library?type=exercises" className="text-sm underline">Exercise Library</Link><h1 className="text-3xl font-bold text-[#002434]">{detail?.set.title || 'Exercises'}</h1><p className="text-sm text-slate-600">Study questions and grammar exercises. Your answers and review progress are saved separately from Vocabulary.</p></header>
+  {importReport&&<p role="status" className="rounded-xl border border-teal-200 bg-teal-50 p-4">{importReport.imported||0} exercises saved · {importReport.unchanged||0} unchanged · {importReport.conflict||0} conflicts · {importReport.unsupported||0} unsupported. Configure practice in Learn.</p>}
   {detail?.set.collection_id&&<Link className="text-sm underline" to={`/collections/${detail.set.collection_id}`}>Open Collection destination</Link>}
   {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-800">{error} <button className="underline" onClick={() => void load()}>Retry</button></p>}
-  <section className={`${box} space-y-4`} aria-label="Practice settings"><h2 className="text-xl font-bold">Practice exercises</h2><div className="flex flex-wrap gap-3">
-   <label className="text-sm">Queue<select className={`${input} ml-2`} value={mode} onChange={e => setMode(e.target.value)}><option value="all">All exercises</option><option value="new">New exercises</option><option value="due">Due review</option></select></label>
-   <label className="text-sm">Session size<input aria-label="Session size" className={`${input} ml-2 w-24`} type="number" min={1} max={200} value={limit} onChange={e => setLimit(Number(e.target.value))} /></label>
-   {detail && <>{[['Category', category, setCategory, detail.categories], ['Unit', unit, setUnit, detail.units], ['Source deck', deck, setDeck, detail.decks]].map(([label, value, setter, values]) => <label key={String(label)} className="min-w-0 text-sm">{String(label)}<select aria-label={String(label)} className={`${input} ml-2`} value={String(value)} onChange={e => {
-              setOffset(0);
-              (setter as (v: string) => void)(e.target.value);
-            }}><option value="">All</option>{(values as string[]).map(v => <option key={v}>{v}</option>)}</select></label>)}</>}
-  </div><button className={btn} disabled={busy || !sets.length || limit < 1 || limit > 200} onClick={start}>{mode === 'due' ? 'Review due exercises' : 'Start practicing'}</button><p className="text-xs text-slate-600">New VOCA schedule. Again: 10 minutes; Hard / Good / Easy: 1 / 3 / 5 days × attempts. Choose the rating yourself after checking.</p></section>
-  {!!active.length && <section className={`${box} space-y-2`}><h2 className="text-lg font-bold">Resume a session</h2>{active.slice(0, 5).map(s => <Link key={s.id} to={`/exercises/session/${s.id}`} className="block underline">Resume · {s.position}/{s.exercise_ids.length} completed · {new Date(s.updated_at).toLocaleString()}</Link>)}</section>}
-  {!setId && <section className="grid gap-4 sm:grid-cols-2">{sets.map(s => <article key={s.id} className={`${box} space-y-3`}><h2 className="text-xl font-bold"><Link to={`/exercises/${s.id}`}>{s.title}</Link></h2><p className="text-sm text-slate-600">{s.content_types?.map(kind=>kind.replaceAll('_',' ')).join(' · ')}</p><p>{s.count} exercises · {s.completed} practiced · {s.due} due</p><progress aria-label={`${s.title} progress`} className="w-full" value={s.completed} max={s.count || 1} /><p className="text-xs text-slate-600">{s.source_filename} · Last practice: {s.last_practiced ? new Date(s.last_practiced).toLocaleString() : 'Not yet'}</p><Link className={btn} to={`/exercises/${s.id}`}>Open set</Link></article>)}{!sets.length && <div className={box}><p>No Exercise Sets saved yet.</p><Link to="/import/files" className={`${btn} mt-3`}>Import an Anki exercise file</Link></div>}</section>}
+  {detail&&<section className={`${box} space-y-4`} aria-label="Browse filters"><div className="flex flex-wrap gap-3">{([['Category',category,setCategory,detail.categories],['Unit',unit,setUnit,detail.units],['Source deck',deck,setDeck,detail.decks]] as const).map(([label,value,setter,options])=><label key={label} className="min-w-0 text-sm">{label}<select className={`${input} ml-2`} value={value} onChange={e=>{setOffset(0);setter(e.target.value);}}><option value="">All</option>{options.map(v=><option key={v}>{v}</option>)}</select></label>)}</div><div className="flex flex-wrap gap-3"><Link className={btn} to={`/learn?${learnQuery}`}>{unit?'Practice this unit':'Practice this set'}</Link><Link className="py-3 text-sm underline" to={`/learn?${new URLSearchParams({...Object.fromEntries(learnQuery),method:'review',scope:'exercises'})}`}>Review due exercises</Link></div></section>}
+  {!setId && <section className="grid gap-4 sm:grid-cols-2">{sets.map(s => <article key={s.id} className={`${box} space-y-3`}><h2 className="text-xl font-bold"><Link to={`/exercises/${s.id}`}>{s.title}</Link></h2><p className="text-sm text-slate-600">{s.content_types?.map(kind=>kind.replaceAll('_',' ')).join(' · ')}</p><p>{s.count} exercises · {s.completed} practiced · {s.due} due</p><progress aria-label={`${s.title} progress`} className="w-full" value={s.completed} max={s.count || 1} /><p className="text-xs text-slate-600">{s.source_filename} · Last practice: {s.last_practiced ? new Date(s.last_practiced).toLocaleString() : 'Not yet'}</p><Link className={btn} to={`/exercises/${s.id}`}>Open set</Link> <Link className="text-sm underline" to={`/learn?method=exercises&set=${s.id}${s.collection_id?`&collection=${s.collection_id}`:""}`}>Practice this set</Link></article>)}{!sets.length && <div className={box}><p>No Exercise Sets saved yet.</p><Link to="/import/files" className={`${btn} mt-3`}>Import an Anki exercise file</Link></div>}</section>}
   {detail && <>
-   <section className={`${box} space-y-3`}><h2 className="text-xl font-bold">Browse exercises · {detail.count}</h2><p className="text-sm">Category, Unit and Source deck filters above apply to browsing and practice queues.</p>{detail.items.map((item, i) => <button key={item.id} disabled={busy} className="block w-full rounded-xl border p-3 text-left hover:bg-teal-50" onClick={() => void action(async () => {
+   <section className={`${box} space-y-3`}><h2 className="text-xl font-bold">Browse exercises · {detail.count}</h2><p className="text-sm">Category, Unit and Source deck filters above narrow this list. Practice these items through Learn.</p>{detail.items.map((item, i) => <button key={item.id} disabled={busy} className="block w-full rounded-xl border p-3 text-left hover:bg-teal-50" onClick={() => void action(async () => {
           setSelected(await getExercise(item.id));
           setDeleteItem(false);
         })}><span className="text-sm text-slate-600">{offset + i + 1}. {item.category} {item.unit} · {item.learning_state}</span><span className="mt-1 block">{item.document.question}</span></button>)}<div className="flex gap-3"><button className={input} disabled={offset === 0} onClick={() => setOffset(n => Math.max(0, n - 50))}>Previous page</button><button className={input} disabled={offset + 50 >= detail.count} onClick={() => setOffset(n => n + 50)}>Next page</button></div></section>

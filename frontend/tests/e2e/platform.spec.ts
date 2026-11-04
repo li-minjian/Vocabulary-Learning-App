@@ -40,7 +40,7 @@ test('file import upload, mapping, collection, duplicate skip and zero AI', asyn
   expect(aiRequests).toBe(0);
   await page.screenshot({ path: 'test-results/file-import-result-desktop.png', fullPage: true });
   await page.getByRole('link', { name: 'Open Vocabulary' }).click();
-  await expect(page).toHaveURL(/\/vocabulary$/);
+  await expect(page).toHaveURL(/\/library\?type=vocabulary$/);
   await expect(page.getByRole('heading', { name: 'Vocabulary Library', exact: true })).toBeVisible();
   await expect(page.getByText('curious', { exact: true })).toBeVisible();
 });
@@ -53,6 +53,8 @@ test('real keyboard typing, local dictionary, progress resume, explicit AI', asy
   await page.getByLabel('Title', { exact: true }).fill('E2E reading article');
   await page.getByLabel('Article text').fill('Hello world.\nCurious people take off.');
   await page.getByRole('button', { name: /Save.*article|Save.*practice/i }).click();
+  await expect(page).toHaveURL(/\/learn\?method=typing/);
+  await page.getByRole('button',{name:'Start Typing',exact:true}).click();
   await expect(page).toHaveURL(/\/practice\/[^/]+/);
   const articleUrl = page.url();
   await page.getByRole('button', { name: 'Start typing', exact: true }).click();
@@ -102,7 +104,8 @@ test('responsive file mapping and article library have no horizontal overflow', 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: `test-results/${route.endsWith('files') ? 'file-import' : 'practice'}-mobile.png`, fullPage: true });
   }
-  await page.getByRole('link', { name: /E2E reading article/ }).click();
+  await page.locator('article').filter({has:page.getByRole('heading',{name:'E2E reading article',exact:true})}).getByRole('link',{name:'Type this article',exact:true}).click();
+  await page.getByRole('button',{name:'Start Typing',exact:true}).click();
   await expect(page.getByRole('heading', { name: 'E2E reading article', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: 'test-results/typing-mobile.png', fullPage: true });
@@ -134,9 +137,9 @@ test('vocabulary CRUD, collection reload, recall, exports and screen gallery', a
     ['word-detail', `/vocabulary/${word.id}`, 'gallery'],
     ['import-hub', '/import', 'Bring your words into Voca'],
     ['import-step1', '/import/step1', 'Paste Text & Document Capture'],
-    ['review-hub', '/review', 'Review Hub'],
+    ['review-hub', '/review', 'Learn'],
     ['review-session', '/review/session', ''],
-    ['review-result', '/review/result', 'Recall Session Complete'],
+    ['review-result', '/review/result', 'Review results'],
     ['collections', '/collections', 'Collections Hub'],
     ['collection-detail', '/collections/33333333-3333-3333-3333-333333333333', 'E2E test collection'],
     ['statistics', '/statistics', 'Statistics'],
@@ -173,6 +176,8 @@ test('long article fast input scrolls caret and local miss never asks AI', async
   await page.getByLabel('Title', { exact: true }).fill('Long scrolling fixture');
   await page.getByLabel('Article text').fill(source);
   await page.getByRole('button', { name: /Save.*article|Save.*practice/i }).click();
+  await expect(page).toHaveURL(/\/learn\?method=typing/);
+  await page.getByRole('button',{name:'Start Typing',exact:true}).click();
   await expect(page).toHaveURL(/\/practice\/[^/]+/);
   let aiRequests = 0;
   page.on('request', request => { if (request.url().includes('/api/ai/')) aiRequests++; });

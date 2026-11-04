@@ -28,13 +28,12 @@ class LargeLibraryTests(unittest.TestCase):
         app.register_blueprint(export_bp, url_prefix='/api/export')
         self.client = app.test_client()
 
-    def test_library_stats_and_exports_include_second_page_and_exclude_other_user(self):
+    def test_library_and_exports_include_second_page_and_exclude_other_user(self):
         with patch('routes.words.supabase', self.db), patch('routes.stats.get_supabase', return_value=self.db), patch('routes.export.supabase', self.db):
             words = self.client.get('/api/words').json
             self.assertEqual(words['count'], 1001)
             self.assertEqual(words['items'][-1]['word'], 'known1000')
             self.assertEqual(self.client.get('/api/words?collection_id=other').json['count'], 0)
-            self.assertEqual(self.client.get('/api/stats').json['total_words'], 1001)
             self.assertEqual(len(self.client.get('/api/export/vocabulary').json), 1001)
             self.assertEqual(len(self.client.get('/api/export/all').json['vocabulary']), 1001)
             self.assertEqual(len(self.client.get('/api/export/review-progress').json), 1001)

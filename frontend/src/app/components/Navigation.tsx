@@ -1,5 +1,6 @@
 import React from 'react';
-import { NavLink } from 'react-router';
+import { Link, useLocation } from 'react-router';
+import { navigationSection } from '../../lib/navigation';
 import { Book, Home, Upload, RotateCcw, FolderOpen, BarChart3, Settings, PanelLeftClose, PanelLeft, Sparkles } from 'lucide-react';
 
 interface NavigationProps {
@@ -10,14 +11,12 @@ interface NavigationProps {
 }
 
 export function Navigation({ isCollapsed, onToggleCollapse, isMobileOpen = false, onCloseMobile }: NavigationProps) {
+  const active = navigationSection(useLocation().pathname);
   const navItems = [
     { id: 'dashboard', path: '/', label: 'Dashboard', icon: Home },
-    { id: 'vocabulary', path: '/vocabulary', label: 'Vocabulary', icon: Book },
-    { id: 'exercises', path: '/exercises', label: 'Exercises', icon: Book },
     { id: 'import', path: '/import', label: 'Import', icon: Upload },
-    { id: 'practice', path: '/practice', label: 'Reading & Typing', icon: Book },
-    { id: 'review', path: '/review', label: 'Review', icon: RotateCcw },
-    { id: 'collections', path: '/collections', label: 'Collections', icon: FolderOpen },
+    { id: 'learn', path: '/learn', label: 'Learn', icon: Book },
+    { id: 'library', path: '/library', label: 'Library', icon: FolderOpen },
     { id: 'statistics', path: '/statistics', label: 'Statistics', icon: BarChart3 },
     { id: 'settings', path: '/settings', label: 'Settings', icon: Settings },
   ];
@@ -69,14 +68,16 @@ export function Navigation({ isCollapsed, onToggleCollapse, isMobileOpen = false
             const Icon = item.icon;
 
             return (
-              <NavLink
+              <Link
                 key={item.id}
                 to={item.path}
                 title={isCollapsed ? item.label : undefined}
-                end={item.path === '/'}
-                className={({ isActive }) =>
+                aria-label={item.label}
+                aria-current={active === item.id ? 'page' : undefined}
+                onClick={onCloseMobile}
+                className={
                   `flex items-center gap-3 py-2 ${isCollapsed ? 'justify-center mx-2 px-0' : 'px-3 mx-3'} my-0.5 rounded-xl transition-all text-[13.5px] font-bold ${
-                    isActive
+                    active === item.id
                       ? 'text-[#002434] bg-[#e6e8e9] border border-[#c2c7cc]/40 shadow-sm'
                       : 'text-[#42474b] hover:bg-[#eceeef] hover:text-[#002434]'
                   }`
@@ -84,7 +85,7 @@ export function Navigation({ isCollapsed, onToggleCollapse, isMobileOpen = false
               >
                 <Icon className="w-[18px] h-[18px] flex-shrink-0" strokeWidth={1.5} />
                 {!isCollapsed && <span className="text-[13.5px]">{item.label}</span>}
-              </NavLink>
+              </Link>
             );
           })}
         </div>

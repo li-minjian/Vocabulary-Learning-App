@@ -123,6 +123,15 @@ def create_fixture_app():
         exercises.get_supabase=lambda:db
     management.get_supabase = app_module.get_supabase = articles.get_supabase = file_import.get_supabase = stats.get_supabase = review.get_supabase = export.get_supabase = lambda: db
     words.supabase = collections.supabase = tags.supabase = review.supabase = export.supabase = db
+    if os.getenv('VOCA_LEARN_POSTGRES')=='1':
+        # Full real SQL/RLS path for Learn, Library, review and statistics integration.
+        # This adapter rejects every non-loopback/non-disposable database target.
+        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'utils'))
+        from exercise_db import Database as LearningDatabase
+        real=LearningDatabase();real.auth=db.auth
+        real.table('collections').upsert([{'id':COLLECTION,'user_id':USER,'name':'E2E test collection'}],on_conflict='id',ignore_duplicates=True).execute()
+        management.get_supabase = app_module.get_supabase = articles.get_supabase = file_import.get_supabase = stats.get_supabase = review.get_supabase = export.get_supabase = exercises.get_supabase = lambda: real
+        words.supabase = collections.supabase = tags.supabase = review.supabase = export.supabase = real
     app = create_app()
     app.config['TESTING'] = True
     ai_count = {'count': 0}

@@ -4,46 +4,6 @@ import { useNavigate } from "react-router";
 import { useState, useEffect } from 'react';
 import { fetchStats, fetchWords, fetchCollections, type VocabularyWord } from '../../lib/api';
 
-function calculateStreak(words: VocabularyWord[]): number {
-  if (!words || words.length === 0) return 0;
-  
-  const activeDates = new Set<string>();
-  words.forEach(w => {
-    if (w.created_at) {
-      activeDates.add(w.created_at.split('T')[0]);
-    }
-    if (w.updated_at) {
-      activeDates.add(w.updated_at.split('T')[0]);
-    }
-  });
-
-  const sortedDates = Array.from(activeDates).sort((a, b) => b.localeCompare(a));
-  if (sortedDates.length === 0) return 0;
-
-  const todayStr = new Date().toISOString().split('T')[0];
-  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-  // If the user hasn't been active today or yesterday, streak is 0
-  if (sortedDates[0] !== todayStr && sortedDates[0] !== yesterdayStr) {
-    return 0;
-  }
-
-  let streak = 0;
-  let currentDate = new Date(sortedDates[0]);
-
-  for (let i = 0; i < sortedDates.length; i++) {
-    const dateStr = currentDate.toISOString().split('T')[0];
-    if (activeDates.has(dateStr)) {
-      streak++;
-      currentDate.setDate(currentDate.getDate() - 1);
-    } else {
-      break;
-    }
-  }
-
-  return streak;
-}
-
 function getRelativeTimeString(dateStr?: string): string {
   if (!dateStr) return 'Unknown';
   try {
@@ -73,7 +33,6 @@ export function Dashboard() {
   const [stats, setStats] = useState<any>(null);
   const [recentWords, setRecentWords] = useState<VocabularyWord[]>([]);
   const [collectionCount, setCollectionCount] = useState<number>(0);
-  const [streak, setStreak] = useState<number>(0);
 
   useEffect(() => {
     let active = true;
@@ -94,9 +53,7 @@ export function Dashboard() {
         setStats(statsData);
         setCollectionCount(collectionsData.length);
         
-        // Calculate real streak from user's words
-        const userStreak = calculateStreak(wordsData);
-        setStreak(userStreak);
+
 
         // Sort words by created_at descending and get top 3
         const sorted = [...wordsData].sort((a, b) => {
@@ -124,7 +81,8 @@ export function Dashboard() {
   if (loading) {
     return (
       <div className="p-8 space-y-6 animate-pulse bg-[#f8fafb] min-h-screen">
-        {/* Title */}
+        <button onClick={()=>navigate('/learn')} className="rounded-xl bg-[#002434] px-5 py-3 font-bold text-white">Start Learning</button>
+      {/* Title */}
         <div className="space-y-2 border-b border-[#c2c7cc]/50 pb-5">
           <div className="h-6 bg-slate-200 rounded w-1/4"></div>
           <div className="h-4 bg-slate-200 rounded w-1/3 mt-2"></div>
@@ -192,7 +150,7 @@ export function Dashboard() {
           <div className="space-y-3 flex-1">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-[#002434]/5 border border-[#002434]/15 rounded-full text-[10.5px] font-bold uppercase tracking-wider text-[#002434] select-none">
               <Clock className="w-3.5 h-3.5 text-[#002434]" strokeWidth={2.5} />
-              <span>Recall Session Ready</span>
+              <span>Scheduled review</span>
             </div>
             
             <div className="flex items-baseline gap-2 mt-1">
@@ -200,12 +158,12 @@ export function Dashboard() {
                 {dueCount}
               </span>
               <span className="text-[13px] text-[#42474b] font-bold uppercase tracking-wider">
-                words due for review
+                scheduled items due
               </span>
             </div>
             
             <p className="text-[13px] text-[#42474b] font-semibold leading-relaxed max-w-md">
-              Maintain your active memory retention rate through daily spaced repetition reviews.
+              Vocabulary: {stats?.vocabulary_due || 0} due · Exercises: {stats?.exercise_due || 0} due · {stats?.vocabulary?.unscheduled || 0} unscheduled words available in Learn.
             </p>
           </div>
 
@@ -217,7 +175,7 @@ export function Dashboard() {
 
             {dueCount > 0 ? (
               <button
-                onClick={() => navigate('/review/session')}
+                onClick={() => navigate('/learn?method=review')}
                 className="h-11 px-6 bg-[#f2f4f5] border border-[#002434]/40 hover:bg-[#eceeef] hover:border-[#002434]/60 text-[#002434] rounded-xl transition-all font-bold text-[13.5px] flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95 select-none"
               >
                 <span>Start Review Session</span>
@@ -225,7 +183,7 @@ export function Dashboard() {
               </button>
             ) : (
               <div className="text-emerald-800 text-[13px] font-bold bg-emerald-50 px-4 py-3 rounded-xl border border-emerald-100/50 flex items-center gap-1.5 shadow-sm select-none">
-                ✨ All caught up for today!
+                ✨ No scheduled items due. Practice anytime in Learn.
               </div>
             )}
           </div>
@@ -261,7 +219,7 @@ export function Dashboard() {
         </button>
 
         <button
-          onClick={() => navigate('/vocabulary')}
+          onClick={() => navigate('/library?type=vocabulary')}
           className="bg-white border border-[#c2c7cc]/60 rounded-3xl p-6 flex flex-col justify-between hover:border-[#002434]/25 transition-all text-left group cursor-pointer shadow-sm hover:shadow-md duration-200"
         >
           <div>
@@ -321,10 +279,10 @@ export function Dashboard() {
             <div className="w-7 h-7 rounded-lg bg-[#f2f4f5] flex items-center justify-center border border-[#c2c7cc]/50">
               <TrendingUp className="w-4 h-4 text-slate-500" strokeWidth={1.5} />
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Streak</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Study days · last 7</span>
           </div>
           <div className="text-[28px] font-extrabold text-[#002434] font-mono leading-none select-all">
-            {streak} <span className="text-[13px] font-bold uppercase select-none">days</span>
+            {stats?.weekly_activity?.filter((day: {reviews:number})=>day.reviews>0).length || 0} <span className="text-[13px] font-bold uppercase select-none">days</span>
           </div>
         </div>
       </div>
@@ -334,7 +292,7 @@ export function Dashboard() {
         <div className="px-6 py-5 border-b border-[#c2c7cc]/40 flex items-center justify-between">
           <h2 className="font-extrabold text-[15.5px] text-[#191c1d] tracking-tight">Recently Discovered Words</h2>
           <button 
-            onClick={() => navigate('/vocabulary')}
+            onClick={() => navigate('/library?type=vocabulary')}
             className="text-[13px] font-bold text-[#002434] hover:text-[#0a3346] hover:underline transition-colors cursor-pointer select-none"
           >
             View Library

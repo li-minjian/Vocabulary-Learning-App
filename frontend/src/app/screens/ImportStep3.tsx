@@ -205,7 +205,7 @@ export function ImportStep3() {
           relatedWords: word.relatedWords || []
         });
       }
-      navigate('/vocabulary');
+      navigate('/library?type=vocabulary');
     } catch (err) {
       const failedWordStr = currentSavingWord ? ` (failed at "${currentSavingWord}")` : '';
       setError((err instanceof Error ? err.message : 'Failed to save words') + failedWordStr);

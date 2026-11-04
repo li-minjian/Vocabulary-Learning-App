@@ -8,6 +8,24 @@ Status vocabulary: **As-Is — Implemented** means inspected source exists;
 **Proposed — Under consideration** is not a decision; **Unknown — Not verified**
 marks an evidence gap. Implementation status does not imply live verification.
 
+## Learn-first integration (2026-11-04)
+
+The current implementation adds `/learn` and `/library`. The six navigation
+entries are Dashboard, Import, Learn, Library, Statistics, Settings. Historical
+content/detail and active session URLs remain valid. Learn selects Typing,
+Exercises, Review (including sequential Mixed Review) or Vocabulary Recall;
+Library holds Vocabulary, Exercises and Articles, with URL-backed Collection
+scope. Articles have no Collection membership. See [Learn-first ownership,
+scheduling, recovery and verification](LEARN-FIRST.md) for the current contract.
+
+The new additive vocabulary receipt table provides retry-safe SRS review and
+practice-only activity without changing the existing word/Exercise/article
+content model. Database functions aggregate actual counts; the old capped Review
+Hub and fabricated Statistics history are removed. Typing/mixed checkpoints are
+browser-local; Exercise sessions remain server-persisted. Release evidence is in
+`docs/qa/learn-first-release-2026-11-04.json` once deployment is verified. The
+historical sections below describe prior releases where they differ.
+
 ## Purpose and system boundaries
 
 VOCA connects contextual reading, personal vocabulary/collections and active

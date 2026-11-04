@@ -1,7 +1,8 @@
-import { BrowserRouter, Routes, Route } from 'react-router';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { MainLayout } from './MainLayout';
+import { Learn } from './screens/Learn';
+import { Library } from './screens/Library';
 import { Dashboard } from './screens/Dashboard';
-import { VocabularyList } from './screens/VocabularyList';
 import { AddWord } from './screens/AddWord';
 import { WordDetail } from './screens/WordDetail';
 import { ImportHub } from './screens/ImportHub';
@@ -32,12 +33,14 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route element={<MainLayout />}>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/vocabulary" element={<VocabularyList />} />
+          <Route path="/learn" element={<Learn />} />
+          <Route path="/library" element={<Library />} />
+          <Route path="/vocabulary" element={<Navigate to="/library?type=vocabulary" replace />} />
           <Route path="/vocabulary/new" element={<AddWord />} />
           <Route path="/vocabulary/:id" element={<WordDetail />} />
           <Route path="/import" element={<ImportHub />} />
           <Route path="/import/files" element={<FileImport />} />
-          <Route path="/exercises" element={<ExerciseLibrary />} />
+          <Route path="/exercises" element={<Navigate to="/library?type=exercises" replace />} />
           <Route path="/exercises/:setId" element={<ExerciseLibrary />} />
           <Route path="/exercises/session/:sessionId" element={<ExercisePractice />} />
           <Route path="/practice" element={<TypingPractice />} />

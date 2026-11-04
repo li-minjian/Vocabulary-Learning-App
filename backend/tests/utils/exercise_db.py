@@ -35,6 +35,15 @@ class Query:
         self.filters.append((key, '=', value))
         return self
 
+    def is_(self, key, value):
+        if value != 'null': raise ValueError('Only null fixture filter supported')
+        self.filters.append((key, 'IS', None))
+        return self
+
+    def single(self):
+        self.as_single = True
+        return self
+
     def lte(self, key, value):
         self.filters.append((key, '<=', value))
         return self
@@ -92,7 +101,7 @@ class Query:
                         result.extend(map(serial, cur.fetchall()))
                     self.db.conn.commit()
                     return SimpleNamespace(data=result)
-                fields = sql.SQL('*') if self.fields == '*' else sql.SQL(',').join((sql.Identifier(k) for k in self.fields.split(',')))
+                fields = sql.SQL('*') if '*' in self.fields or '(' in self.fields else sql.SQL(',').join((sql.Identifier(k.strip()) for k in self.fields.split(',')))
                 if self.op == 'select':
                     query = sql.SQL('SELECT {} FROM {}').format(fields, sql.Identifier(self.table))
                 elif self.op == 'delete':
@@ -101,8 +110,8 @@ class Query:
                     query = sql.SQL('UPDATE {} SET {}').format(sql.Identifier(self.table), sql.SQL(',').join((sql.SQL('{}=%s').format(sql.Identifier(k)) for k in self.values)))
                     values.extend((Json(v) if isinstance(v, (dict, list)) else v for v in self.values.values()))
                 if self.filters:
-                    query += sql.SQL(' WHERE ') + sql.SQL(' AND ').join((sql.SQL('{} {} %s').format(sql.Identifier(k), sql.SQL(op)) for k, op, _ in self.filters))
-                    values.extend((v for _, _, v in self.filters))
+                    query += sql.SQL(' WHERE ') + sql.SQL(' AND ').join((sql.SQL('{} IS NULL').format(sql.Identifier(k)) if op=='IS' else sql.SQL('{} {} %s').format(sql.Identifier(k), sql.SQL(op)) for k, op, _ in self.filters))
+                    values.extend((v for _, op, v in self.filters if op!='IS'))
                 if self.op == 'select':
                     if self.orders:
                         query += sql.SQL(' ORDER BY ') + sql.SQL(',').join((sql.SQL('{} {}').format(sql.Identifier(k), sql.SQL('DESC' if desc else 'ASC')) for k, desc in self.orders))
@@ -113,8 +122,21 @@ class Query:
                     query += sql.SQL(' RETURNING *')
                 cur.execute(query, values)
                 result = list(map(serial, cur.fetchall()))
+                if self.op=='select' and self.table=='words' and '(' in self.fields:
+                    for word in result:
+                        for table in ('examples','collocations','synonyms'):
+                            cur.execute(sql.SQL('select * from {} where word_id=%s and user_id=auth.uid()').format(sql.Identifier(table)),[word['id']])
+                            word[table]=list(map(serial,cur.fetchall()))
+                        word['tags']=[]
+                        if 'vocabulary_attempts(count)' in self.fields:
+                            cur.execute('select count(*) from vocabulary_attempts where word_id=%s and user_id=auth.uid()',[word['id']])
+                            word['vocabulary_attempts']=[{'count':cur.fetchone()['count']}]
+                if self.op=='select' and self.table=='collections' and 'words(count)' in self.fields:
+                    for collection in result:
+                        cur.execute('select count(*) from words where collection_id=%s and user_id=auth.uid()',[collection['id']])
+                        collection['words']=[{'count':cur.fetchone()['count']}]
                 self.db.conn.commit()
-                return SimpleNamespace(data=result)
+                return SimpleNamespace(data=result[0] if result and getattr(self,'as_single',False) else result)
             except Exception:
                 self.db.conn.rollback()
                 raise

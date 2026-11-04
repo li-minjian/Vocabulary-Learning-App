@@ -174,6 +174,9 @@ export async function submitReviewAnswer(wordId: string | number, answer: 'again
 function mapBackendWord(item: any): VocabularyWord {
   return {
     ...item,
+    nextReview: item.next_review || '', reviewCount: item.review_count || 0,
+    collection: item.collection_id || '', addedAt: item.created_at || '',
+    studied: (item.review_count || 0) > 0 || (item.vocabulary_attempts?.[0]?.count || 0) > 0,
     tags: item.tags?.map((t: any) => t.tag?.name || t.name) || [],
     collocations: item.collocations?.map((c: any) => c.phrase) || [],
     synonyms: item.synonyms?.filter((s: any) => s.relation_type === 'synonym').map((s: any) => s.related_word) || [],
@@ -181,8 +184,8 @@ function mapBackendWord(item: any): VocabularyWord {
   };
 }
 
-export async function fetchWords(): Promise<VocabularyWord[]> {
-  const result = await fetchApi<{ items: any[]; count: number }>('/api/words');
+export async function fetchWords(collection = 'all'): Promise<VocabularyWord[]> {
+  const result = await fetchApi<{ items: any[]; count: number }>('/api/words?' + new URLSearchParams({collection_id: collection}));
   return result.items.map(mapBackendWord);
 }
 
@@ -241,6 +244,10 @@ export async function createCollection(data: Partial<Collection>): Promise<Colle
   });
 }
 
+export function updateCollection(collectionId: string, name: string): Promise<Collection> {
+  return fetchApi<Collection>(`/api/collections/${collectionId}`,{method:'PUT',body:JSON.stringify({name})});
+}
+
 export async function deleteCollection(collectionId: string): Promise<void> {
   return fetchApi<void>(`/api/collections/${collectionId}`, {
     method: 'DELETE',
@@ -264,7 +271,7 @@ export async function fetchTags(): Promise<Tag[]> {
 
 
 export async function fetchStats(): Promise<any> {
-  return fetchApi<any>('/api/stats');
+  return fetchApi<any>('/api/stats?' + new URLSearchParams({timezone: Intl.DateTimeFormat().resolvedOptions().timeZone}));
 }
 
 // ================= Export =================

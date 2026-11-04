@@ -37,22 +37,7 @@ def pages(db, table, user, configure=lambda q: q, limit=10000):
     return items
 
 def list_sets(db, user):
-    sets = pages(db, 'exercise_sets', user, limit=500)
-    rows = pages(db, 'exercises', user, limit=20000)
-    now = datetime.now(timezone.utc).isoformat()
-    summaries = {s['id']: {'count': 0, 'completed': 0, 'due': 0, 'last_practiced': None,'content_types':[]} for s in sets}
-    for row in rows:
-        if row['set_id'] not in summaries:
-            continue
-        s = summaries[row['set_id']]
-        kind=row['document']['kind']
-        if kind not in s['content_types']:s['content_types'].append(kind)
-        s['count'] += 1
-        s['completed'] += int(row.get('total_attempts', 0) > 0)
-        s['due'] += int(bool(row.get('total_attempts')) and (not row.get('next_review') or row['next_review'] <= now))
-        if row.get('last_practiced') and (not s['last_practiced'] or row['last_practiced'] > s['last_practiced']):
-            s['last_practiced'] = row['last_practiced']
-    return [{**s, **summaries[s['id']]} for s in sets]
+    return db.rpc('exercise_set_summaries', {}).execute().data
 
 def create_set(db, user, data):
     title = text(data.get('title', ''), 200)
@@ -159,23 +144,12 @@ def start_session(db, user, data):
         if data.get(key) is not None:
             text(data[key], 2000)
 
-    def configure(q):
-        if set_id:
-            q = q.eq('set_id', set_id)
-        for key in ('category', 'unit', 'source_deck'):
-            if data.get(key):
-                q = q.eq(key, data[key])
-        if mode == 'new':
-            q = q.eq('total_attempts', 0)
-        if mode == 'due':
-            q = q.lte('next_review', datetime.now(timezone.utc).isoformat())
-        return q
-    rows = pages(db, 'exercises', user, configure, limit=10000)
-    rows.sort(key=lambda r: (r.get('next_review') or '', r['position'], r['id']))
-    ids = [row['id'] for row in rows[:limit]]
+    ids = db.rpc('exercise_queue', {'p_collection': data.get('collection_id') or 'all', 'p_set': set_id or None,
+        'p_mode': mode, 'p_limit': limit, 'p_category': data.get('category') or '',
+        'p_unit': data.get('unit') or '', 'p_deck': data.get('source_deck') or ''}).execute().data
     if not ids:
         raise ExerciseError('No exercises match this queue.')
-    db.table('exercise_sessions').upsert([{'id': id, 'user_id': user, 'exercise_ids': ids, 'config': {key: data.get(key) for key in ('set_id', 'mode', 'limit', 'category', 'unit', 'source_deck')}}], on_conflict='id', ignore_duplicates=True).execute()
+    db.table('exercise_sessions').upsert([{'id': id, 'user_id': user, 'exercise_ids': ids, 'config': {key: data.get(key) for key in ('collection_id', 'set_id', 'mode', 'limit', 'category', 'unit', 'source_deck')}}], on_conflict='id', ignore_duplicates=True).execute()
     return session_detail(db, user, id)
 
 def session_detail(db, user, id):

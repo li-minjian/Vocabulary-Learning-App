@@ -1,0 +1,35 @@
+{
+  "date": "2026-11-04",
+  "baseline_main": "01b37ad1501fa604bc22a7703de098ff7374c1cd",
+  "baseline_cloud_run_revision": "vocabulary-learning-app-exercises-23bb5fb",
+  "baseline_vercel_deployment": "dpl_B3J3ZczV1fELcf8wMDcTWYK7fo4U",
+  "automated": {
+    "backend": {
+      "run": 123,
+      "passed": 121,
+      "skipped": 2
+    },
+    "frontend_unit": {
+      "passed": 14
+    },
+    "browser_regression": {
+      "passed": 36
+    },
+    "focused_visual_rerun": {
+      "passed": 9
+    },
+    "typescript": "passed",
+    "production_build": "passed",
+    "schema_only_backup_restore_and_migration": "passed"
+  },
+  "antigravity": {
+    "invoked": false,
+    "reason": "Direct code, SQL and browser checks covered this integration; overlapping delegation would add coordination."
+  },
+  "production_learning_writes": {
+    "verified": false,
+    "reason": "No dedicated production test identity; user data was not changed for demonstration."
+  },
+  "production_release": "Backend staging/promotion and exact frontend alias verification are recorded in the associated PR release report.",
+  "rollback": "Restore baseline Cloud Run traffic and Vercel deployment together; retain additive receipt data/functions."
+}

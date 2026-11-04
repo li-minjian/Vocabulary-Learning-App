@@ -1,8 +1,10 @@
 import { X, Loader2, Volume2, Clock, Sparkles, Check, HelpCircle } from 'lucide-react';
 import { useNavigate } from "react-router";
-import { useState, useEffect } from 'react';
-import { fetchReviewQueue, submitReviewAnswer, fetchWordById, type VocabularyWord } from '../../lib/api';
+import { useState, useEffect, useRef } from 'react';
+import { fetchReviewQueue, fetchWordById, type VocabularyWord } from '../../lib/api';
 import { useLocation } from 'react-router';
+import { useAuth } from '../contexts/AuthContext';
+import { flowPath, learningConfigPath, readFlow, saveFlow, recordVocabulary, resolveVocabulary, vocabularyReceipts, type LearningFlow, type VocabularyReceipt } from '../../lib/learning';
 import { speakWord } from '../../lib/speech';
 
 type ReviewMode = 'flashcard' | 'multipleChoice' | 'spelling';
@@ -11,9 +13,20 @@ export function ReviewSession() {
   const navigate = useNavigate();
   
   const location = useLocation();
-  const activeModes: ReviewMode[] = location.state?.activeModes || ['flashcard'];
+  const {user}=useAuth();
+  const flowId=new URLSearchParams(location.search).get('flow');
+  const [flow,setFlow]=useState<LearningFlow|null>(()=>user&&flowId?readFlow(user.id,flowId):null);
+  const activeModes: ReviewMode[] = flow?.modes || location.state?.activeModes || ['flashcard'];
   const limit: number = location.state?.limit || 20;
-  const collectionId: string = location.state?.collectionId || 'all';
+  const collectionId: string = flow?.collection || location.state?.collectionId || 'all';
+  const [receipts,setReceipts]=useState<VocabularyReceipt[]>([]);
+  const firstResponse=useRef<string|null>(null);
+  const pendingAnswer=useRef<Record<string,unknown>|null>(null);
+  const loadingRun=useRef(0);
+  function finish(f:LearningFlow){
+    const next={...f,phase:f.exerciseId?'exercises' as const:'complete' as const};
+    saveFlow(next);setIsSessionActive(false);navigate(flowPath(next),{replace:true});
+  }
 
   const [queue, setQueue] = useState<VocabularyWord[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -26,8 +39,6 @@ export function ReviewSession() {
   const [detailedWord, setDetailedWord] = useState<VocabularyWord | null>(null);
 
   // Session stats tracking
-  const [correctCount, setCorrectCount] = useState(0);
-  const [incorrectCount, setIncorrectCount] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isSessionActive, setIsSessionActive] = useState(true);
 
@@ -72,6 +83,7 @@ export function ReviewSession() {
     
     // Pick random mode
     const mode = activeModes[Math.floor(Math.random() * activeModes.length)];
+    firstResponse.current=null;pendingAnswer.current=null;
     setCurrentMode(mode);
     setSpellInput('');
     setSpellError(false);
@@ -83,71 +95,49 @@ export function ReviewSession() {
 
     if (mode === 'multipleChoice') {
       // Pick 3 distractors
-      const others = q.filter(w => w.id !== word.id).map(w => w.word);
+      const others = [...new Set(q.filter(w => w.word !== word.word).map(w => w.word))];
       const distractors = others.sort(() => 0.5 - Math.random()).slice(0, 3);
-      if (distractors.length < 3) {
-        distractors.push(...['Example', 'Target', 'Context'].slice(0, 3 - distractors.length));
-      }
+      if (!distractors.length) setCurrentMode('flashcard');
       setMcOptions([...distractors, word.word].sort(() => 0.5 - Math.random()));
     }
   };
 
   useEffect(() => {
-    fetchReviewQueue(limit, collectionId)
-      .then(words => {
-        setQueue(words);
-        if (words.length > 0) initCard(0, words);
-        setIsLoading(false);
-      })
-      .catch(err => {
-        setError(err.message || 'Failed to load review queue');
-        setIsLoading(false);
-      });
-  }, [limit, collectionId]);
+    const run=++loadingRun.current;
+    async function load(){
+      if(!user)throw new Error('Sign in to continue.');
+      let f=flowId?readFlow(user.id,flowId):null;
+      if(flowId&&!f)throw new Error('This browser has no checkpoint for this session. Exercise progress remains on the server. Return to Learn.');
+      if(!f){
+        const words=await fetchReviewQueue(limit,collectionId);
+        f={version:1,id:crypto.randomUUID(),user:user.id,collection:collectionId,modes:activeModes,practice:false,wordIds:words.map(w=>String(w.id)),mixed:false,phase:'vocabulary',createdAt:new Date().toISOString()};
+        saveFlow(f);if(run!==loadingRun.current)return;
+        navigate(`/review/session?flow=${f.id}`,{replace:true});return;
+      }
+      if(f.phase!=='vocabulary'){navigate(flowPath(f),{replace:true});return;}
+      const [words,saved]=await Promise.all([resolveVocabulary(f.wordIds),vocabularyReceipts(f.id)]);
+      if(run!==loadingRun.current)return;
+      setFlow(f);setReceipts(saved.items);setQueue(words.items);
+      const index=words.items.findIndex(w=>!saved.items.some(a=>a.word_id===String(w.id)));
+      if(index<0&&words.items.length){finish(f);return;}
+      setCurrentIndex(Math.max(index,0));if(index>=0)initCard(index,words.items);setIsLoading(false);
+    }
+    load().catch(e=>{if(run===loadingRun.current){setError(e.message);setIsLoading(false);}});
+    return()=>{loadingRun.current++;};
+  }, [flowId,user?.id]);
 
   const handleAnswer = async (answer: 'again' | 'hard' | 'good' | 'easy') => {
-    const currentWord = queue[currentIndex];
-    if (!currentWord) return;
-
-    const isCorrect = answer === 'good' || answer === 'easy';
-    if (isCorrect) {
-      setCorrectCount(prev => prev + 1);
-    } else {
-      setIncorrectCount(prev => prev + 1);
-    }
-
-    setIsSubmitting(true);
-    try {
-      await submitReviewAnswer(currentWord.id, answer);
-      
-      // Move to next card
-      const nextIndex = currentIndex + 1;
-      if (nextIndex >= queue.length) {
-        setIsSessionActive(false);
-        const finalCorrect = isCorrect ? correctCount + 1 : correctCount;
-        const finalIncorrect = !isCorrect ? incorrectCount + 1 : incorrectCount;
-        const total = finalCorrect + finalIncorrect;
-        const accuracy = total > 0 ? Math.round((finalCorrect / total) * 100) : 100;
-
-        navigate('/review/result', { 
-          state: { 
-            reviewedCount: queue.length,
-            accuracy,
-            elapsedSeconds,
-            correctCount: finalCorrect,
-            incorrectCount: finalIncorrect
-          } 
-        });
-      } else {
-        setCurrentIndex(nextIndex);
-        setRevealed(false);
-        initCard(nextIndex, queue);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit answer');
-    } finally {
-      setIsSubmitting(false);
-    }
+    const word=queue[currentIndex];if(!word||!flow||isSubmitting)return;
+    setIsSubmitting(true);setError(null);
+    try{
+      if(!pendingAnswer.current)pendingAnswer.current={id:crypto.randomUUID(),session_id:flow.id,word_id:word.id,answer,mode:flow.practice?'practice':'review',format:currentMode,response:firstResponse.current,revealed:currentMode==='flashcard'||firstResponse.current===null};
+      const receipt=await recordVocabulary(pendingAnswer.current);
+      const saved=[...receipts.filter(a=>a.word_id!==receipt.word_id),receipt];setReceipts(saved);
+      const nextIndex=queue.findIndex(w=>!saved.some(a=>a.word_id===String(w.id)));
+      if(nextIndex<0){finish(flow);return;}
+      setCurrentIndex(nextIndex);setRevealed(false);initCard(nextIndex,queue);
+    }catch(e){setError(e instanceof Error?e.message:'Answer was not confirmed. Retry.');}
+    finally{setIsSubmitting(false);}
   };
 
   if (isLoading) {
@@ -159,16 +149,16 @@ export function ReviewSession() {
     );
   }
 
-  if (error) {
+  if (error && !queue.length) {
     return (
       <div className="fixed inset-0 bg-[#f8fafb] flex flex-col items-center justify-center p-8 text-center space-y-5 z-50">
         <div className="w-12 h-12 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-700 font-extrabold text-[20px] select-none shadow-sm">!</div>
         <p className="text-rose-700 font-bold max-w-sm text-[14.5px] leading-relaxed">{error}</p>
         <button 
-          onClick={() => navigate('/review')} 
+          onClick={() => navigate(flow?learningConfigPath(flow):'/learn?method=review')}
           className="h-10 px-5 bg-[#002434] hover:bg-[#0a3346] text-white font-bold rounded-xl cursor-pointer transition-all active:scale-95 shadow-md shadow-[#002434]/10 select-none text-[13.5px]"
         >
-          Back to Review Hub
+          Back to Learn
         </button>
       </div>
     );
@@ -181,14 +171,14 @@ export function ReviewSession() {
           <Sparkles className="w-7 h-7" strokeWidth={1.5} />
         </div>
         <div className="space-y-1.5 max-w-xs mx-auto">
-          <h2 className="text-[18px] font-extrabold text-[#191c1d] tracking-tight">Review Queue Caught Up!</h2>
-          <p className="text-[#42474b] text-[13px] font-semibold leading-relaxed">No reviews scheduled at this threshold. Keep building your vocabulary dictionary!</p>
+          <h2 className="text-[18px] font-extrabold text-[#191c1d] tracking-tight">No vocabulary in this queue</h2>
+          <p className="text-[#42474b] text-[13px] font-semibold leading-relaxed">Return to Learn to see due counts across vocabulary and exercises.</p>
         </div>
         <button 
-          onClick={() => navigate('/review')} 
+          onClick={() => navigate(flow?learningConfigPath(flow):'/learn?method=review')}
           className="h-10 px-5 bg-[#002434] hover:bg-[#0a3346] text-white font-bold rounded-xl cursor-pointer transition-all active:scale-95 shadow-md shadow-[#002434]/10 select-none text-[13.5px]"
         >
-          Back to Review Hub
+          Back to Learn
         </button>
       </div>
     );
@@ -202,13 +192,14 @@ export function ReviewSession() {
 
   return (
     <div className="fixed inset-0 bg-[#f8fafb] flex flex-col z-50 animate-in fade-in duration-300 text-[#191c1d] select-none">
+      {error&&<div role="alert" className="bg-red-50 p-3 text-center text-red-800">{error} <button className="underline" disabled={isSubmitting} onClick={()=>void handleAnswer((pendingAnswer.current?.answer as 'again')||'again')}>Retry saving the same answer</button></div>}
       {/* High-Fidelity Navigation Progress Bar */}
-      <div className="h-16 border-b border-[#c2c7cc]/60 bg-white/95 backdrop-blur-md flex items-center justify-between px-8 z-20">
-        <div className="flex items-center gap-5">
+      <div className="min-h-16 border-b border-[#c2c7cc]/60 bg-white/95 backdrop-blur-md flex items-center justify-between gap-2 px-3 sm:px-8 z-20">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-5">
           <div className="text-[13px] font-extrabold text-[#42474b] uppercase tracking-wider">
-            Card {currentCardNumber} of {totalCards}
+            {flow?.mixed?'Mixed Review · Vocabulary · ':flow?.practice?'Vocabulary Recall · ':''}Card {currentCardNumber} of {totalCards}
           </div>
-          <div className="w-44 h-2 bg-[#eceeef] rounded-full overflow-hidden border border-[#c2c7cc]/20">
+          <div className="hidden sm:block w-44 h-2 bg-[#eceeef] rounded-full overflow-hidden border border-[#c2c7cc]/20">
             <div className="h-full bg-[#002434] rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
           </div>
           <div className="text-[12.5px] font-bold text-[#42474b] flex items-center gap-1.5 bg-[#f2f4f5] px-3 py-1 rounded-lg border border-[#c2c7cc]/60">
@@ -217,7 +208,7 @@ export function ReviewSession() {
           </div>
         </div>
         <button
-          onClick={() => navigate('/review')}
+          onClick={() => navigate(flow?learningConfigPath(flow):'/learn?method=review')}
           className="w-9 h-9 flex items-center justify-center rounded-xl border border-[#c2c7cc]/60 bg-white hover:bg-[#eceeef] text-[#42474b] hover:text-[#191c1d] transition-all cursor-pointer shadow-sm active:scale-95"
           title="Exit Session"
         >
@@ -225,6 +216,7 @@ export function ReviewSession() {
         </button>
       </div>
 
+      {activeModes.includes('multipleChoice')&&currentMode==='flashcard'&&<p className="px-4 pt-3 text-center text-sm">Multiple Choice needs distinct words for alternatives. This item uses Flashcard.</p>}
       {/* Main Focus Arena */}
       <div className="flex-1 flex items-center justify-center p-6 md:p-8 overflow-y-auto relative z-10">
         <div className="w-full max-w-2xl">
@@ -233,7 +225,7 @@ export function ReviewSession() {
               <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-6 flex items-center justify-center gap-1.5">
                 <span>{currentWord.language}</span>
                 <span>•</span>
-                <span>Active Recall Spaced Repetition</span>
+                <span>{flow?.practice?'Practice · schedule unchanged':'Scheduled Vocabulary Review'}</span>
               </div>
               
               {currentMode === 'flashcard' && (
@@ -304,6 +296,7 @@ export function ReviewSession() {
                           key={i}
                           disabled={hasSelectedAnyWrong}
                           onClick={() => {
+                            firstResponse.current ??= opt;
                             if (opt === currentWord.word) {
                               setRevealed(true);
                             } else {
@@ -329,8 +322,8 @@ export function ReviewSession() {
                       </div>
                       <p className="text-[12px] text-rose-600 font-semibold leading-relaxed">
                         {isReinforced 
-                          ? "We've scheduled this word for reinforcement review within this session." 
-                          : "Reinforcement review disabled."}
+                          ? "Continue with Again to mark this word as needing more practice."
+                          : "Continue with Good to record your chosen rating."}
                       </p>
                       
                       <div className="flex gap-2 pt-2 border-t border-rose-200/40">
@@ -363,6 +356,7 @@ export function ReviewSession() {
                   <form 
                     onSubmit={(e) => {
                       e.preventDefault();
+                      firstResponse.current ??= spellInput;
                       if (spellInput.trim().toLowerCase() === currentWord.word.toLowerCase()) {
                         setRevealed(true);
                       } else {
@@ -537,7 +531,7 @@ export function ReviewSession() {
                 className="h-14 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-250 text-rose-800 transition-all disabled:opacity-50 cursor-pointer flex flex-col items-center justify-center shadow-sm active:scale-95"
               >
                 <div className="text-[13.5px] font-extrabold">Again</div>
-                <div className="text-[9.5px] font-bold uppercase tracking-wide mt-0.5 text-rose-600/80">Soon</div>
+                <div className="text-[9.5px] font-bold uppercase tracking-wide mt-0.5 text-rose-600/80">Now</div>
               </button>
               
               {/* Hard */}
@@ -547,7 +541,7 @@ export function ReviewSession() {
                 className="h-14 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-250 text-amber-800 transition-all disabled:opacity-50 cursor-pointer flex flex-col items-center justify-center shadow-sm active:scale-95"
               >
                 <div className="text-[13.5px] font-extrabold">Hard</div>
-                <div className="text-[9.5px] font-bold uppercase tracking-wide mt-0.5 text-amber-600/80">1 Day</div>
+                <div className="text-[9.5px] font-bold uppercase tracking-wide mt-0.5 text-amber-600/80">1 × reviews days</div>
               </button>
               
               {/* Good */}
@@ -557,7 +551,7 @@ export function ReviewSession() {
                 className="h-14 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-250 text-blue-800 transition-all disabled:opacity-50 cursor-pointer flex flex-col items-center justify-center shadow-sm active:scale-95"
               >
                 <div className="text-[13.5px] font-extrabold">Good</div>
-                <div className="text-[9.5px] font-bold uppercase tracking-wide mt-0.5 text-blue-600/80">3 Days</div>
+                <div className="text-[9.5px] font-bold uppercase tracking-wide mt-0.5 text-blue-600/80">3 × reviews days</div>
               </button>
               
               {/* Easy */}
@@ -567,7 +561,7 @@ export function ReviewSession() {
                 className="h-14 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-250 text-emerald-800 transition-all disabled:opacity-50 cursor-pointer flex flex-col items-center justify-center shadow-sm active:scale-95"
               >
                 <div className="text-[13.5px] font-extrabold">Easy</div>
-                <div className="text-[9.5px] font-bold uppercase tracking-wide mt-0.5 text-emerald-600/80">7 Days</div>
+                <div className="text-[9.5px] font-bold uppercase tracking-wide mt-0.5 text-emerald-600/80">5 × reviews days</div>
               </button>
             </div>
           </div>
